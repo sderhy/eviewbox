@@ -108,35 +108,22 @@ public class MainClass extends Frame  implements WindowListener{
 
  public void OpenFolder(){
  	Tools.debug(this, "OpenFolder") ;
- 	FileLister fL = new FileLister(System.getProperty("user.dir"),null,this) ;
- 	fL.show() ;
- 	java.io.File dir = fL.getChoosenDirectory() ;
- 	Tools.debug("choosen dir = "+ dir);
- 	if(dir != null){
- 		if(!dir.isDirectory()) return ;
- 		fL.dispose() ;
- 		String[] files = dir.list() ;
-		for (int i = 0 ; i< files.length ; i++){
-	 		File f = new File(dir, files[i]);
-	 		if(!f.isDirectory()) {
-	 				String theFile = f.getAbsolutePath();
-		 			Tools.debug("The image number  " + i + " is " + theFile);
-		 			OpenGif.fromFile( theFile,this);
-		 			repaint() ;
-			}//endif
-		} //endFor
-	}//end if(dir != null)
-	else{
-		File [] chosenFiles =fL.getChosenFiles();
-		fL.dispose() ;
-		if (chosenFiles == null) return ;
-			for (int i = 0 ; i< chosenFiles.length ; i++){
-				String theFile = chosenFiles[i].getAbsolutePath();
-		 		Tools.debug("The image number  " + i + " is " + theFile);
-	 			OpenGif.fromFile( theFile,this);
-	 			repaint() ;
-		}//end for
-	}
+	FileDialog dialog = new FileDialog(this, "Open images", FileDialog.LOAD);
+	dialog.setMultipleMode(true);
+	dialog.setVisible(true);
+
+	File[] chosenFiles = dialog.getFiles();
+	dialog.dispose();
+
+	if(chosenFiles == null || chosenFiles.length == 0) return ;
+	for (int i = 0 ; i< chosenFiles.length ; i++){
+		File file = chosenFiles[i];
+		if(file == null || file.isDirectory()) continue ;
+		String theFile = file.getAbsolutePath();
+		Tools.debug("The image number  " + i + " is " + theFile);
+		OpenGif.fromFile(theFile,this);
+		repaint() ;
+	}//end for
 
  }
 
@@ -194,5 +181,4 @@ public class MainClass extends Frame  implements WindowListener{
 
 
 }//end of class
-
 
