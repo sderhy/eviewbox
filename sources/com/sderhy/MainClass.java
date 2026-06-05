@@ -9,6 +9,7 @@ import java.net.* ;
 import java.awt.*;
 import java.io.* ;
 import java.util.Vector;
+import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import tools.Chrono ;
 import tools.Tools ;
@@ -105,6 +106,15 @@ public class MainClass extends Frame  implements WindowListener{
 	chooser.setApproveButtonToolTipText("Open images from the selected folder");
 	chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 	chooser.setAcceptAllFileFilterUsed(false);
+
+	JButton openCurrentFolder = new JButton("Open Current Folder");
+	openCurrentFolder.addActionListener(new ActionListener(){
+		public void actionPerformed(ActionEvent e){
+			chooser.setSelectedFile(chooser.getCurrentDirectory());
+			chooser.approveSelection();
+		}
+	});
+	chooser.setAccessory(openCurrentFolder);
 
 	if(chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return ;
 
