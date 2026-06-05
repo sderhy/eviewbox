@@ -25,7 +25,7 @@ public class MainClass extends Frame  implements WindowListener{
 		TF = new TextField(80) ;
 		//TA = new TextArea();
 		vimages = new Vector(32,32);
-		lastOpenDirectory = new File(System.getProperty("user.dir"));
+		lastOpenDirectory = Futil.getLastDirectory();
 
 		int screenH = Toolkit.getDefaultToolkit().getScreenSize().height;
 	 	int screenW = Toolkit.getDefaultToolkit().getScreenSize().width;
@@ -76,18 +76,6 @@ public class MainClass extends Frame  implements WindowListener{
 		else if (command.equals("GenerateHtml")) canvas.generateHtml();
 		else if (command.equals("NextWindow")) Winager.next();
 		else if (command.equals("LastWindow")) Winager.previous();
-		else if (command.equals("MailTo")) {
-											MailerWidget MW = new MailerWidget() ;
-											MW.setVisible(true );
-
-		}
-		else if (command.equals("MailToTheAuthor")){
-											MailerWidget MW = new MailerWidget("sderhy@imaginet.fr") ;
-											MW.setVisible(true );
-										}
-
-
-
 		else Tools.debug(this,command);
 
 	}// end of doCommand()
@@ -124,6 +112,7 @@ public class MainClass extends Frame  implements WindowListener{
 	Tools.debug("chosen dir = "+ dir);
 	if(dir == null || !dir.isDirectory()) return ;
 	lastOpenDirectory = dir;
+	Futil.setLastDirectory(dir);
 
 	File[] files = dir.listFiles();
 	if(files == null) return ;

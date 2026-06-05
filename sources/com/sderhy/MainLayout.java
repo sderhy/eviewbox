@@ -16,7 +16,7 @@ import java.awt.event.*;
 public class MainLayout
 {
 	static MenuBar mbar;
-	static Menu file ,  edit , mail,windows, help ;
+	static Menu file ,  edit , windows, help ;
 	static Menu open; // SUBMENUS..
 	static Menu multiplanar ;
 //	static Menu edit ;
@@ -44,8 +44,6 @@ public class MainLayout
 	"Clear Icons" , "clearAll" ,
 	"Change Background","bg",
 	"Change Size","size",
-	"Mail To...", "MailTo" ,
-	"Mail To The Author","MailToTheAuthor" ,
 	"Next Window","NextWindow" ,
 	"Previous Window",	"LastWindow" ,
 	"Slide Show" , "Diaporama" ,
@@ -207,14 +205,6 @@ public class MainLayout
 		m.addActionListener(al);m.setActionCommand(commands[++index]) ;
 
 		mbar.add(edit);
-//Menu Mail
-		mail  = new Menu (" Mail ");
-		mail.addSeparator();
-		mail.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_M))) ;
-			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-		mail.add(m=new MenuItem( commands[++index]));
-			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-		mbar.add(mail);
 //Menu Window
 		windows = new Menu( "Windows" );
 		windows.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_N)));
