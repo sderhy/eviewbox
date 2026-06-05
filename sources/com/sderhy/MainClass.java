@@ -9,6 +9,7 @@ import java.net.* ;
 import java.awt.*;
 import java.io.* ;
 import java.util.Vector;
+import javax.swing.JFileChooser;
 import tools.Chrono ;
 import tools.Tools ;
 import java.awt.event.* ;
@@ -108,22 +109,28 @@ public class MainClass extends Frame  implements WindowListener{
 
  public void OpenFolder(){
  	Tools.debug(this, "OpenFolder") ;
-	FileDialog dialog = new FileDialog(this, "Open images", FileDialog.LOAD);
-	dialog.setMultipleMode(true);
-	dialog.setVisible(true);
+	JFileChooser chooser = new JFileChooser(System.getProperty("user.dir"));
+	chooser.setDialogTitle("Open images folder");
+	chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+	chooser.setAcceptAllFileFilterUsed(false);
 
-	File[] chosenFiles = dialog.getFiles();
-	dialog.dispose();
+	if(chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return ;
 
-	if(chosenFiles == null || chosenFiles.length == 0) return ;
-	for (int i = 0 ; i< chosenFiles.length ; i++){
-		File file = chosenFiles[i];
-		if(file == null || file.isDirectory()) continue ;
-		String theFile = file.getAbsolutePath();
-		Tools.debug("The image number  " + i + " is " + theFile);
-		OpenGif.fromFile(theFile,this);
-		repaint() ;
-	}//end for
+	File dir = chooser.getSelectedFile();
+	Tools.debug("choosen dir = "+ dir);
+	if(dir == null || !dir.isDirectory()) return ;
+
+	File[] files = dir.listFiles();
+	if(files == null) return ;
+	for (int i = 0 ; i< files.length ; i++){
+		File file = files[i];
+		if(!file.isDirectory()) {
+			String theFile = file.getAbsolutePath();
+			Tools.debug("The image number  " + i + " is " + theFile);
+			OpenGif.fromFile(theFile,this);
+			repaint() ;
+		}//endif
+	} //endFor
 
  }
 
@@ -181,4 +188,3 @@ public class MainClass extends Frame  implements WindowListener{
 
 
 }//end of class
-
