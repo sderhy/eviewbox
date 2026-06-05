@@ -11,17 +11,17 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 	Button send , cancel ;
 	Button file ;
 	static String host = "mail.yourDomain.com";
-	String recipient; 
+	String recipient;
 	String senderHost = "domain.com"; //domain address : HELO domain.com
 	static String sender = "yourName@Domain.com";
 	String[] message ;
 	public String subject = " " ;
-	public static final String crlf = "\r\n" ;	
+	public static final String crlf = "\r\n" ;
 	static boolean firstPass = true ;
 	static String lastDir ;
 	int count = 0;
 	public static final boolean  debug = false ;
-	
+
 	public MailerWidget(String auteur){
 		this() ;
 		if( auteur == "") this.recipient = "dicom@derhy.com" ;
@@ -36,11 +36,11 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 		mTF.addActionListener(this);
 		sTF = new TextField(30);
 		sTF.addActionListener(this);
-		
+
 		InsetPanel ip = new InsetPanel(Color.pink) ;
 		ip.setEtched(true) ;
-		Panel ip0 = new Panel() ;	
-		Panel ip1 = new Panel() ;	
+		Panel ip0 = new Panel() ;
+		Panel ip1 = new Panel() ;
 		Panel ip3 = new Panel() ;
 
 		ip0.setLayout( new FlowLayout(FlowLayout.LEFT));
@@ -52,11 +52,11 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 		Label yourName = new Label("Mail to : ");
 		Label smtpServer = new Label("Smtp server :" ) ;
 		ip3.add(smtpServer) ;
-		
+
 		smtpTF = new TextField(host) ;
 		ip3.add(smtpTF) ;
 		smtpTF.addActionListener(this ) ;
-		
+
 		ip3.add(new Label("Sender :"));
 		senderTF = new TextField(sender) ;
 		ip3.add(senderTF) ;
@@ -69,55 +69,55 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 		//sender = "" ;
 		ip0.add( yourName ) ;
 		ip0.add(mTF) ;
-		
+
 		ip1.add(new Label("Subject :")) ;
 		ip1.add(sTF) ;
 		ip1.add(send);
 		ip1.add(file) ;
 		ip1.add(cancel);
-		
+
 		sTF.setText(subject) ;
-		ip.add(ip3);//smtp server//Sender 
+		ip.add(ip3);//smtp server//Sender
 		ip.add(ip0);
 		ip.add(ip1);
 		this.add("North",ip);
 		this.add("Center",TA );	this.pack() ;
-		
+
 		//must include a WindowListner :
 		this.addWindowListener(this);
-		
+
 	}
-	
+
 	public MailerWidget(String subject, String recipient ){
 		this() ;
 		this.subject =subject ;
 		this.recipient = recipient ;
 	}
 
-	
+
 	public void actionPerformed(ActionEvent e){
 		if(e.getSource() == file ) {file() ;cancel() ;}
 		if( e.getSource() == send) { if(send() )cancel();}
 		if( e.getSource() == cancel ) cancel() ;
-	
+
 	}
 	public void cancel() {
 		 this.hide();
 		 this.dispose() ;
 	}
-	
+
 	public void file(){
 		count =0 ;
 		Smtp session = null ;
 		sender = senderTF.getText() ;
 		host = smtpTF.getText() ;
-		
-		FileDialog fd = new FileDialog(this,"Selectionner un fichier ",FileDialog.LOAD) ;	
+
+		FileDialog fd = new FileDialog(this,"Selectionner un fichier ",FileDialog.LOAD) ;
 		if( firstPass){// get the file dialog to the user.dir at first time .
 			fd.setDirectory(System.getProperty("user.dir"));
 			firstPass = false ;
 			}// end  if first pass
-		else  
+		else
 			fd.setDirectory(lastDir) ;
 		fd.pack();  // bug workaround
 		fd.show();  // blocks until user selects a file
@@ -125,39 +125,39 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 		String fileString =  fd.getDirectory()+fd.getFile() ;
 		if (fd.getDirectory() != null) lastDir = fd.getDirectory() ;
 		fd.dispose();
-		
-		
-		
+
+
+
 		try{
-			FileReader fr = new FileReader(fileString) ;	
+			FileReader fr = new FileReader(fileString) ;
 			BufferedReader br = new BufferedReader(fr) ;
 			String line = "" ;
 			line = br.readLine() ;
-			
+
 			session = new Smtp(host , sender , senderHost);
-			
+
 			while((line = br.readLine() ) != ".") {
 				if(line == null) break;
 				send(session, line) ;
 			}
-			
+
 		}catch(IOException ignore){	dbg(ignore.toString());}
 		finally{ session.close() ;}
 	}
-	
-	
+
+
 	public void send(Smtp session, String line){
-		
+
 		mTF.setText(line);
 		subject = sTF.getText() ;
 		count++ ;
 		line.trim();
-		if( line.indexOf("@" ) == -1 ) return  ;	
+		if( line.indexOf("@" ) == -1 ) return  ;
 		if(line.charAt(0) =='#') return ;
 		line = parseEmail(line);
 		if(line == "") return ;
 		recipient = line;
-		dbg(line +" n¡  " + count );
+		dbg(line +" nÂ°  " + count );
 		if(!debug){
 			String body  =  TA. getText() ;
 			message = new String[13] ;
@@ -178,13 +178,13 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 			try{
 				session.sendMessages(line,message);
 				}
-			catch( java.io.IOException e){ 
+			catch( java.io.IOException e){
 				tools.Tools.debug("erreur ligne " + line + " :\n\t"+e);
 			}
 			return ;
 		}//endifdebug
 	}
-	
+
 	public boolean  send(){
 		sender =senderTF.getText();
 		sender.trim();
@@ -213,14 +213,14 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 		message[j++] =  crlf;//11
 		message[j++] = parseBody(body ) ;//12//retrieve crlf
 		message[j++] = "" ; ///Signature13
-		
+
 		try{
 			com.sderhy.Smtp session = new com.sderhy.Smtp(host , recipient, sender , senderHost, message );
 			session.connect() ;
 			session.sendMessage(message);
 			session.close() ;
 		}
-		catch( java.io.IOException e){ 
+		catch( java.io.IOException e){
 			new AlertBox(this,"Networking exception" ,e.toString());
 			return false ;
 		}
@@ -228,8 +228,8 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 	//			System.out.println( message[i] );
 		return true ;
 		}
-		
-	
+
+
 	public String parseEmail(String email){
 		String token ="";
 		java.util.StringTokenizer st = new java.util.StringTokenizer(email);
@@ -238,7 +238,7 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 				token.trim() ;
 				if(validAdrs(token)) return token ;
 			}
-		return token ;	
+		return token ;
 	}
 	public String parseBody(String body ){//traduit lf en crlf ...
 		String parsed ="" ;
@@ -252,8 +252,8 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 		}
 		if(last_i <  body.length())
 			parsed += body.substring(last_i , body.length() ) + crlf;
-			
-	
+
+
 		return parsed ;
 	}
 	protected boolean validAdrs(String email ){
@@ -266,19 +266,19 @@ public class MailerWidget extends Frame implements ActionListener , WindowListen
 			if(email.indexOf(".") <= 0)return false  ;
 			if(email.indexOf("#") !=-1)return false  ;
 			return true;
-	}	
-	
+	}
+
 
 
 	public void dbg(String m){
 		if(true) System.out.print(m) ;
 		}
-	
+
 	public static void main(String[] args){
 		MailerWidget MW = new MailerWidget() ;
 		MW.setVisible(true );
 	}
-	////windowListener	
+	////windowListener
   public void windowClosing(WindowEvent e) { cancel(); }
   public void windowOpened(WindowEvent e) {}
   public void windowClosed(WindowEvent e) {}

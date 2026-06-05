@@ -15,8 +15,8 @@ Le code provient d'un ancien depot CVS: les repertoires `CVS/` sont conserves da
 ## Etat actuel
 
 - Le code compile avec OpenJDK 17.
-- Les sources utilisent un ancien encodage MacRoman, d'ou l'option `-encoding MacRoman`.
-- La partie applet (`e_ViewBox_Applet`) est historique. Les navigateurs modernes ne prennent plus en charge les applets Java; le lancement utile aujourd'hui est l'application desktop AWT.
+- Les sources Java historiques ont ete converties de MacRoman vers UTF-8 pour faciliter la maintenance sur GitHub.
+- La partie applet (`e_ViewBox_Applet`) est historique et n'est plus compilee par le build par defaut. Les navigateurs modernes ne prennent plus en charge les applets Java; le lancement utile aujourd'hui est l'application desktop AWT.
 - Plusieurs API AWT et `Thread` utilisees par le code sont obsoletes, mais encore compilables avec avertissements.
 
 ## Compiler

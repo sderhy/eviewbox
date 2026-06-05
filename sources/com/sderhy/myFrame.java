@@ -1,5 +1,5 @@
 /*
-* A convenient Frame to get rid of closing the frames 
+* A convenient Frame to get rid of closing the frames
 *	@ author Serge Derhy
 *	@ date 19/04/98
 *	@ version 190498/1725
@@ -19,47 +19,47 @@ public class myFrame extends java.awt.Frame implements WindowListener, ActionLis
 	public String[] menuScale  = new String[]{"Normal Size"," 25 %"," 50 %"," 75 %"," 200 %"," 300 %"};
 	public String[] scaleCommands  = new String[]{"NormalSize","by25","by50","by75" ,"by200","by300" };
 	public String[] menuProcess = new String[] {"Reset","Invert" , "256 Grays " , "FlipVertical","Flip Horizontal",
-													"Brighten Up","Pseudo Colors", 
+													"Brighten Up","Pseudo Colors",
 													"Rotate Left", "Rotate Right","Sharpen", "Blur" };
 	public String[] processCommands  = new String[] {"reset","invertLut" , "gray" , "flipV","flipH",
 													"brighten","pseudoColor",
 													"rotateL", "rotateR","sharpen", "blur" };
-													
-	public String[] menuWindow = new String[]{"Next Window" , "Previous Window"} ; 
-	public String[] windowCommand = new String[]{"next" , "previous"} ;				
-	
+
+	public String[] menuWindow = new String[]{"Next Window" , "Previous Window"} ;
+	public String[] windowCommand = new String[]{"next" , "previous"} ;
+
  	protected static int numWindows = 0 ;
  	private int isNumber ;
- 	
+
  	public MenuBar mb ;
- 	
- 	
- 	
-//Constructors 	
- 	
+
+
+
+//Constructors
+
  	public  myFrame() { this(""); }
- 	public myFrame(String title) { 
-    	super(title); 
+ 	public myFrame(String title) {
+    	super(title);
     	this.addWindowListener(this);
     	this.arrange() ;
 
   //  	this.panelize() ;//windows bug
     	isNumber = numWindows++ ;
-    
+
   	}
-  
+
   	protected void panelize(){
   		this.setBackground(Color.black) ;
-  		this.add("South", new Panel());  
+  		this.add("South", new Panel());
   		this.add("North",new Panel());
-  		this.pack() ;	
-  	}	
-  		
-  		
+  		this.pack() ;
+  	}
+
+
 	public int getWindowNumber(){ return  isNumber; }
 	public  int getTotalNumberOfWindowsOpened(){ return numWindows;}
 
-// Make a menubar : arrange method  
+// Make a menubar : arrange method
   	protected void arrange(){
   		MenuItem m = null;
   		int index = 0;
@@ -73,23 +73,23 @@ public class myFrame extends java.awt.Frame implements WindowListener, ActionLis
 			file.add(m = new MenuItem(menuFile[++index], new MenuShortcut(KeyEvent.VK_S)));//Save
 				m.addActionListener(this);m.setActionCommand(fileCommands[index]) ;
 		mb.add(file);
-		index = 0 ;///// Attention : grosse piège ! potential pitfall
+		index = 0 ;///// Attention : grosse pi√®ge ! potential pitfall
   		Menu edit  = new Menu("Edit" );
 			edit.add(m = new MenuItem(menuEdit[index], new MenuShortcut(KeyEvent.VK_U)));//Undo
-			
+
 				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;
 			edit.add(m = new MenuItem(menuEdit[++index], new MenuShortcut(KeyEvent.VK_X)));//Cut
-				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;		
+				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;
   			edit.add(m = new MenuItem(menuEdit[++index], new MenuShortcut(KeyEvent.VK_C)));//Copy
-				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;	
+				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;
 			edit.add(m = new MenuItem(menuEdit[++index], new MenuShortcut(KeyEvent.VK_V)));//Past
-				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;	
+				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;
   			edit.addSeparator();
 			edit.add(m = new MenuItem(menuEdit[++index], new MenuShortcut(KeyEvent.VK_R)));//Past
-				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;	
-  		
-  		mb.add(edit) ;		
-  		
+				 m.addActionListener(this);m.setActionCommand(editCommands[index]) ;
+
+  		mb.add(edit) ;
+
   		Menu win = new Menu("Window");
   			win.add(m=new MenuItem(menuWindow[0],new MenuShortcut(KeyEvent.VK_N)));
   			m.addActionListener(this);m.setActionCommand(windowCommand[0]);
@@ -97,96 +97,96 @@ public class myFrame extends java.awt.Frame implements WindowListener, ActionLis
   			win.add(m=new MenuItem(menuWindow[1],new MenuShortcut(KeyEvent.VK_L)));
   			m.addActionListener(this);m.setActionCommand(windowCommand[1]);
   		mb.add(win) ;
-  		
+
   		Menu scale = new Menu("Scale") ;
   			for (int i = 0 ; i< menuScale.length ; i++ ){
   				scale.add(m = new MenuItem(menuScale[i], new MenuShortcut(KeyEvent.VK_0 + i)));
-  				m.addActionListener(this) ;  
+  				m.addActionListener(this) ;
   				m.setActionCommand(scaleCommands[i]);
   			}
   		mb.add(scale) ;
   		Menu process = new Menu( "Process") ;
-  		//Reset	
+  		//Reset
   			process.add(m = new MenuItem( menuProcess[0], new MenuShortcut(KeyEvent.VK_R) ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[0]);	
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[0]);
   		process.addSeparator();
-  		
-  		// Invert	
+
+  		// Invert
   			process.add(m = new MenuItem( menuProcess[1], new MenuShortcut(KeyEvent.VK_I ) ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[1]);	
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[1]);
   		// Gray :
   			process.add(m = new MenuItem( menuProcess[2], new MenuShortcut(KeyEvent.VK_G ) ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[2]);	
-  			
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[2]);
+
   		// FlipVertical :
   			process.add(m = new MenuItem( menuProcess[3] ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[3]);		
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[3]);
   		// FlipHorizontal
    			process.add(m = new MenuItem( menuProcess[4] ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[4]);					
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[4]);
   		// BrightenUp
     		process.add(m = new MenuItem( menuProcess[5] ) );
-  			m.addActionListener(this) ;  
+  			m.addActionListener(this) ;
   			m.setActionCommand(processCommands[5]);
-  		// PseudoColors 
+  		// PseudoColors
   			process.add(m = new MenuItem( menuProcess[6] ) );
-  			m.addActionListener(this) ;  
+  			m.addActionListener(this) ;
   			m.setActionCommand(processCommands[6]);
-  		// RotateLeft 
+  		// RotateLeft
   			process.add(m = new MenuItem( menuProcess[7] ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[7]);	
-  		// RotateRight 
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[7]);
+  		// RotateRight
   			process.add(m = new MenuItem( menuProcess[8] ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[8]);	  			
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[8]);
   		// Sharpen
   			process.add(m = new MenuItem( menuProcess[9] ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[9]);	  	
-  		// blur 
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[9]);
+  		// blur
   			process.add(m = new MenuItem( menuProcess[10] ) );
-  			m.addActionListener(this) ;  
-  			m.setActionCommand(processCommands[10]);	  	
-  	
+  			m.addActionListener(this) ;
+  			m.setActionCommand(processCommands[10]);
+
   		mb.add(process);
-  		
+
 	}// end arrange
-	
+
 	public void actionPerformed (ActionEvent e){
 			String commande = e.getActionCommand() ;
 				if(commande.equals("close")) dispose();
 				else if(commande.equals("next"))Winager.next();
 				else if(commande.equals("previous")) Winager.previous();
 				else
-				      
-					tools.Tools.debug("This command "+ commande+ " is not yet implemented");			
+
+					tools.Tools.debug("This command "+ commande+ " is not yet implemented");
 	//  See also the other classes : ImageViewer and PixObjectViewer .. to understand
 	// the actionPerformed : e.g : reset is callled from PixObjectViewer .
 	}
-	
-	
+
+
 	public void hide(){
 		numWindows--;
-		Winager.remove(this) ;	
+		Winager.remove(this) ;
 		super.hide();
 	}
-	
+
 	public void show(){
 		Winager.add(this) ;
 		super.show() ;
 	}
-	
-	
-	
-	
 
-////windowListener	
+
+
+
+
+////windowListener
   public void windowClosing(WindowEvent e) { this.dispose(); }
   public void windowOpened(WindowEvent e) {}
   public void windowClosed(WindowEvent e) {}
@@ -194,13 +194,13 @@ public class myFrame extends java.awt.Frame implements WindowListener, ActionLis
   public void windowDeiconified(WindowEvent e) {}
   public void windowActivated(WindowEvent e) {}
   public void windowDeactivated(WindowEvent e) {}
-  
-//	
+
+//
 	public  void componentResized(ComponentEvent e ){
 			tools.Tools.debug(this ,"from component Listener");
 			 };
 	public  void componentMoved(ComponentEvent e ) {};
-	public  void componentShown(ComponentEvent e ) {};	
+	public  void componentShown(ComponentEvent e ) {};
 	public  void componentHidden(ComponentEvent e ){} ;
 
 

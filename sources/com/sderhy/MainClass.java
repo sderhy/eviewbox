@@ -4,31 +4,29 @@
  *	@ date 01/01/98
  * <A HREF ="mailto:sderhy@imaginet.fr"> Serge Derhy</A>
  */
-package com.sderhy ; 
+package com.sderhy ;
 import java.net.* ;
 import java.awt.*;
 import java.io.* ;
-import java.util.Vector;     
+import java.util.Vector;
 import tools.Chrono ;
 import tools.Tools ;
-import java.awt.event.* ; 
+import java.awt.event.* ;
 
 public class MainClass extends Frame  implements WindowListener{
 
-	public static boolean isApplet = false ;
 	public TextField TF;
 	public PixCanvas canvas;
 	public Vector vimages ;
-	public java.applet.Applet applet = null ;
 	public MainClass( String title){
 		super( title ) ;
 		TF = new TextField(80) ;
 		//TA = new TextArea();
 		vimages = new Vector(32,32);
-		
+
 		int screenH = Toolkit.getDefaultToolkit().getScreenSize().height;
 	 	int screenW = Toolkit.getDefaultToolkit().getScreenSize().width;
-		
+
 		canvas = new PixCanvas(this,600,300);///CHANGER ICI  POUR OCCUPER PLUS  l4ecran
 		// setting the window  Layout
 		com.sderhy.MainLayout.setLayout(this);
@@ -39,11 +37,11 @@ public class MainClass extends Frame  implements WindowListener{
 		Winager.add(this);
 		//MainLayout.initMenus(this);
 		show();
-		
+
 	}// end of constructeur
 /**
 *	doCommand is  intended for answering to menu command
-*/	
+*/
 	public void doCommand(String command){
 		if (command.equals ("OpenGIF")) OpenGif.fromFile(this) ;
 		else if (command.equals("OpenDicom"))OpenDicom.fromFile(this) ;
@@ -60,8 +58,8 @@ public class MainClass extends Frame  implements WindowListener{
 		else if (command.equals("OpenFolder")) OpenFolder();
 		else if (command.equals("Quit")) close();
 		else if (command.equals("SaveAsGIF")) canvas.savePixCanvas() ;
-		else if (command.equals("ParseFile")) canvas.parseFile() ;	
-		else if (command.equals("PrintImage")) canvas.print() ;	
+		else if (command.equals("ParseFile")) canvas.parseFile() ;
+		else if (command.equals("PrintImage")) canvas.print() ;
 		else if (command.equals("OpenFromURL")) this.openURLDialog() ;
 		else if (command.equals("linear")) new Multiplanar(canvas, false);
 		else if (command.equals("curve")) new Multiplanar(canvas, true);
@@ -78,30 +76,21 @@ public class MainClass extends Frame  implements WindowListener{
 		else if (command.equals("MailTo")) {
 											MailerWidget MW = new MailerWidget() ;
 											MW.setVisible(true );
-											
+
 		}
 		else if (command.equals("MailToTheAuthor")){
 											MailerWidget MW = new MailerWidget("sderhy@imaginet.fr") ;
 											MW.setVisible(true );
 										}
-				
-		
-		
+
+
+
 		else Tools.debug(this,command);
-	
-	}// end of doCommand()		
+
+	}// end of doCommand()
 
 	 public void close(){
-	 	if(!isApplet){
-	 		Tools.debug("isApplet is " + isApplet ) ;
-    		this.dispose();
-    		return ;
-    		//System.exit(0);
-   	}else{ 
-   	this.dispose() ;
-    	Tools.gc() ;
-    	applet.destroy();
-    	}
+    	this.dispose();
     }
 
 	public void openURLDialog(){
@@ -122,7 +111,7 @@ public class MainClass extends Frame  implements WindowListener{
  	FileLister fL = new FileLister(System.getProperty("user.dir"),null,this) ;
  	fL.show() ;
  	java.io.File dir = fL.getChoosenDirectory() ;
- 	Tools.debug("choosen dir = "+ dir);	
+ 	Tools.debug("choosen dir = "+ dir);
  	if(dir != null){
  		if(!dir.isDirectory()) return ;
  		fL.dispose() ;
@@ -140,24 +129,24 @@ public class MainClass extends Frame  implements WindowListener{
 	else{
 		File [] chosenFiles =fL.getChosenFiles();
 		fL.dispose() ;
-		if (chosenFiles == null) return ;	
+		if (chosenFiles == null) return ;
 			for (int i = 0 ; i< chosenFiles.length ; i++){
 				String theFile = chosenFiles[i].getAbsolutePath();
 		 		Tools.debug("The image number  " + i + " is " + theFile);
 	 			OpenGif.fromFile( theFile,this);
 	 			repaint() ;
-		}//end for	
+		}//end for
 	}
-	
+
  }
 
- 
-  public void windowClosing(WindowEvent e) { 	
+
+  public void windowClosing(WindowEvent e) {
  	 	this.hide();
  	 	close();
  }
 
-		
+
 
   public void windowOpened(WindowEvent e) {repaint() ;}
   public void windowClosed(WindowEvent e) {}
@@ -165,42 +154,42 @@ public class MainClass extends Frame  implements WindowListener{
   public void windowDeiconified(WindowEvent e) {repaint() ;}
   public void windowActivated(WindowEvent e) {repaint();}
   public void windowDeactivated(WindowEvent e) {repaint();}
- 
- 
+
+
 
 /** The main entry point to the class.
  */
 	public static void main(String args[])
 	{
-		MainClass MC = new MainClass("EViewBox" );	
+		MainClass MC = new MainClass("EViewBox" );
 	}//end of Main()
 	public static void main()
 	{
-		MainClass MC = new MainClass("eViewBox " );	
+		MainClass MC = new MainClass("eViewBox " );
 	}//end of Main()
 
 
 /**
 *	A component Listener InnerClass :
 */
-	
-	
+
+
 	public class CompoListener extends ComponentAdapter {
 			MainClass mc ;
 			public 	CompoListener(MainClass mc){
 				this.mc = mc ;
 				}
 			public void componentResized(ComponentEvent e){
-				 Dimension d = mc.getSize() ;	
+				 Dimension d = mc.getSize() ;
 				 mc.canvas.setSize(d) ;
 				 repaint();
-							
-			}//endofComponentResized	
-			
+
+			}//endofComponentResized
+
 			public   void componentHidden(ComponentEvent e){mc.repaint() ;} ;
 			public   void componentMoved(ComponentEvent e){mc.repaint();};
 			public  void componentShown(ComponentEvent e){mc.repaint();}
-				
+
 	}//EndOfInnerClass
 
 

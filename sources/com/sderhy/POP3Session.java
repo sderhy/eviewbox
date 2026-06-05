@@ -4,15 +4,15 @@ import java.net.*;
 import java.util.*;
 
 public class POP3Session {
-	
+
 	protected Socket pop3Sock;
 	protected DataInputStream inStream;
 	protected DataOutputStream outStream;
 	public String userName;
 	public String password;
 	public String host;
-	public int port;	
-	
+	public int port;
+
 	public POP3Session(String host,String userName,String password) {
 		this.host=host;
 		this.port=110;
@@ -41,7 +41,7 @@ public class POP3Session {
 			return count;
 			}
 		catch(NumberFormatException e){throw new IOException("Invalid reponse -"+e);}
-	}//end of getMessageCount()	
+	}//end of getMessageCount()
 //---Command UIDL---------------------------------------------------------------------
 	public String[] getUIDL() throws IOException{
 		String response = doCommand("UIDL ");
@@ -54,8 +54,8 @@ public class POP3Session {
 		String response = doCommand("RETR "+ messageNumber);
 		if(isErrorResponse(response)) throw new IOException(response);
 		return getData();
-	}//end of getMessage	
-//--Commande LIST--------------------------------------------------------------------	
+	}//end of getMessage
+//--Commande LIST--------------------------------------------------------------------
 	public String[] getHeaders() throws IOException{
 		String response = doCommand("LIST");
 		if(isErrorResponse(response)) throw new IOException(response);
@@ -67,21 +67,21 @@ public class POP3Session {
 		if(isErrorResponse(response)) throw new IOException(response);
 		return response;
 	}//end of getHeader
-	
+
 //--Command TOP----------------------------------------------------------------------
 	public String[] getMessageHead(int messageNumber, int lineCount) throws IOException{
 		String response = doCommand("TOP "+ messageNumber+" "+lineCount);
 		if(isErrorResponse(response)) throw new IOException(response);
 		return getData();
 	}//end of getMessageHead
-	
+
 //---Command DELE------------------------------------------------------------------
 	public void deleteMessage(int messageNumber) throws IOException{
 		String response = doCommand("DELE "+messageNumber);
 		if(isErrorResponse(response)) throw new IOException(response);
 
 	}//end of method DELE
-	
+
 //---Command RSET----------------------------------------------------------------------
 	public void reset() throws IOException{
 		String response = doCommand("RSET");
@@ -92,20 +92,20 @@ public class POP3Session {
 		String response = doCommand("QUIT");
 		if(isErrorResponse(response)) throw new IOException(response);
 	}//end of method QUIT
-	
+
 //---Connection to host---------------------------------------------------------------
 	public void connect() throws IOException{
 		pop3Sock = new Socket(host,port);
 		inStream = new DataInputStream(pop3Sock.getInputStream());
 		outStream = new DataOutputStream(pop3Sock.getOutputStream());
 		String response= inStream.readLine();
-		System.out.println("Connexion à "+host );
-		System.out.println("Message de connexion  : " + response ); 
+		System.out.println("Connexion Ã  "+host );
+		System.out.println("Message de connexion  : " + response );
 		response = doCommand("USER "+userName);
-		if(isErrorResponse(response)) throw new IOException(response);		
+		if(isErrorResponse(response)) throw new IOException(response);
 		response = doCommand("PASS "+password);
 		if(isErrorResponse(response)) throw new IOException(response);
-	}//end of method!!	
+	}//end of method!!
 //---Close all sockets---------------------------------------------------------------
 	public  void close() throws IOException{
 		pop3Sock.close();
@@ -121,7 +121,7 @@ public class POP3Session {
 	protected String[] getData() throws IOException{
 		Vector lines = new Vector();
 		String line;
-		
+
 		while( (line =inStream.readLine())!= null){
 			if(line.equals(".")){
 				String response[]= new String[lines.size()];
@@ -130,10 +130,10 @@ public class POP3Session {
 				}
 			if((line.length()>0) && (line.charAt(0)=='.'))
 				line = line.substring(1);
-		
+
 		lines.addElement(line);
 		}//end while
 	throw new IOException("Connection closed");
 	}//end of method
-	
+
 }

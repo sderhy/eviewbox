@@ -17,7 +17,7 @@ ActionListener,ComponentListener, Runnable{
 
 	Vector vimages ;
 	Image  img ;
-	int w, h ;//  the image 
+	int w, h ;//  the image
 	int destw , desth ;
 	int xLeft , yBottom ;
 	int currentImage  =  0;
@@ -27,9 +27,11 @@ ActionListener,ComponentListener, Runnable{
 	int x = 0 ; int  y = 0 ;
 	Image offImage ;
 	private Graphics go ;
-	private boolean  isRunning ;
+	private volatile boolean isRunning ;
+	private volatile boolean shouldStop ;
+	private final Object pauseLock = new Object();
 	Button Stop , Play , Pause , Reverse , Slower , Faster;
-	
+
 public Diaporama(Vector vimages){
 	super("Diaporama") ;
 	this.setBackground( Color.black );
@@ -73,14 +75,21 @@ public Diaporama(Vector vimages){
 public void start() {
 	if( runner ==  null ){
 		runner = new Thread( this );
-		runner.start() ;
 		isRunning = true ;
+		shouldStop = false ;
+		runner.start() ;
 	}
 }
 public void stop(){
-	runner.stop() ;
+	shouldStop = true ;
 	isRunning  = false ;
-	runner = null ;
+	synchronized(pauseLock){
+		pauseLock.notifyAll();
+	}
+	if(runner != null){
+		runner.interrupt();
+		runner = null ;
+	}
 	}
 
 public void update(Graphics  g){
@@ -89,7 +98,7 @@ public void update(Graphics  g){
 		offImage = this.createImage(getSize().width, getSize().height) ;
 	go = offImage.getGraphics() ;
 	go.fillRect(0,0,getSize().width, getSize().height) ;
-	go.drawImage(img,x,y,xLeft,yBottom,0,0,w,h,this) ;	
+	go.drawImage(img,x,y,xLeft,yBottom,0,0,w,h,this) ;
 	paint(g) ;
 	go.dispose() ;
 	Tools.gc();
@@ -123,12 +132,12 @@ public void centerImage(int largeur , int hauteur){
 	int height= getSize().height ;
 
 		// if the image is to big resize it ,
-	
+
 	 	if(w>width && (w>h)){
 	 		 destw = width*95/100;
 	 		 desth =( h*width*95 )/(w*100) ;
 	 	}
-	 	
+
 	 	else if(h >height && (h >= w)){
 	 		desth = height*90/100 ;
 	 		destw = w * height*90/(h*100) ;
@@ -147,7 +156,18 @@ public void centerImage(int largeur , int hauteur){
 
 //Runnable:
 public void run() {
-	while(true){
+	while(!shouldStop){
+			synchronized(pauseLock){
+				while(!isRunning && !shouldStop){
+					try{
+						pauseLock.wait();
+					}catch(InterruptedException ie){
+						Thread.currentThread().interrupt();
+						return;
+					}
+				}
+			}
+			if(shouldStop) return;
 			PixObject po = (PixObject)vimages.elementAt(currentImage);
 			img = po.image ;
 			w = po.w  ;  h = po.h ;
@@ -163,14 +183,15 @@ public void run() {
 private void suspend (){
 		if (runner == null ) return ;
 		if(!isRunning) return ;
-		runner.suspend() ;
 		isRunning = false ;
 		}
 private void resume() {
 		if(runner == null) return ;
 		if(isRunning ) return ;
-		runner.resume() ;
 		isRunning = true ;
+		synchronized(pauseLock){
+			pauseLock.notifyAll();
+		}
 		}
 
 
@@ -180,10 +201,10 @@ public void actionPerformed(ActionEvent e){
 	if(e.getSource() == Stop ) suspend() ;
 	if(e.getSource() == Play ) resume();
 	if(e.getSource() == Reverse) increment = -increment ;
-	if(e.getSource() == Pause ) suspend() ;		
-	if(e.getSource() == Slower ) pause += pause * 30/100 ;		
+	if(e.getSource() == Pause ) suspend() ;
+	if(e.getSource() == Slower ) pause += pause * 30/100 ;
 	if(e.getSource() == Faster) {
-						pause -= pause * 30/100 ;					
+						pause -= pause * 30/100 ;
 						if (pause < 100)  pause = 100 ;
 						}
 
@@ -195,7 +216,7 @@ public void actionPerformed(ActionEvent e){
 		if( isRunning ) suspend();
 		else resume() ;
   }
-  
+
   public void mouseClicked(MouseEvent e) {
   }
   public void mouseEntered(MouseEvent e) {;}
@@ -203,7 +224,7 @@ public void actionPerformed(ActionEvent e){
   public void mouseReleased(MouseEvent e) {;}
 
 //*/
-//windowListener; 
+//windowListener;
   public void windowClosing(WindowEvent e) { this.dispose(); }
   public void windowOpened(WindowEvent e) {}
   public void windowClosed(WindowEvent e) {}
@@ -211,9 +232,9 @@ public void actionPerformed(ActionEvent e){
   public void windowDeiconified(WindowEvent e) {}
   public void windowActivated(WindowEvent e) {}
   public void windowDeactivated(WindowEvent e) {}
-  
-  
-  
+
+
+
   	public  void componentResized(ComponentEvent e ){
 		offImage= null;
 		Tools.gc();
@@ -221,7 +242,7 @@ public void actionPerformed(ActionEvent e){
 			 };
 	public  void componentMoved(ComponentEvent e ) {};
 	public  void componentShown(ComponentEvent e ) {
-	};	
+	};
 	public  void componentHidden(ComponentEvent e ){
 		if( isRunning ) suspend();
 	} ;

@@ -26,11 +26,11 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
  	public MenuBar mb ;
 	public String[] menuFile  = new String[] {"Close" ,"close", "Print...", "print" , "Save...","save" };
 	public String[] menuThick = new String[] { "1 mm","1","2 mm","2","5mm","5","10 mm","10"};
-  
-  public DrawableFrame( Multiplanar orig ) { 
+
+  public DrawableFrame( Multiplanar orig ) {
     super("Multiplanar reconstruction");
     this.parent  = orig ;
-    
+
     vimages = orig.getVector();
     numberOfImages = vimages.size() ;
     zh = thickness * numberOfImages ;
@@ -40,14 +40,14 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
     w = img.getWidth(this) ;
     h = img.getHeight(this) ;
 
-	 dc = new DrawableCanvas(this) ; 
+	 dc = new DrawableCanvas(this) ;
     // dc.setSize(w, h) ;
-     this.add("North",supP = new Panel());  
-	 this.add("East",leftP =new Panel());  
-	 infP =new Panel();     
+     this.add("North",supP = new Panel());
+	 this.add("East",leftP =new Panel());
+	 infP =new Panel();
  	this.add("West",rightP = new Panel());
  	this.add("Center", dc) ;
-	
+
 	zImg = zconstruc();
 	zCanvas = new ZCanvas( zImg, w ,zh ) ;
 	f = new Frame("Z Axis Reconstruction") ;
@@ -56,22 +56,22 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	/*
 	infP.add(zCanvas);
 	infP.setBackground(Color.pink) ;
-	
-	this.add("South", infP );   
+
+	this.add("South", infP );
 	//*/
 	this.setSize(w + 20 , h +10/* + zh*/) ;
 	setResizable(false);
     this.addWindowListener(this);
   	f.setLocation( 10 , 10 ) ;
-  	f.show() ; 
-  	
+  	f.show() ;
+
   	arrange() ;
   //	addActionListener(this);
-  	
+
    	this.setLocation( 100  , /*f.getSize().height/2 */+ 30 ) ;
    	f.toFront();
    }
-   
+
 	protected void arrange(){
   		MenuItem m = null;
   		int index = 0;
@@ -91,27 +91,27 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 
 			sT.add(m = new MenuItem(menuThick[++index]));//2mm
   				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
-		
+
 			sT.add(m = new MenuItem(menuThick[++index]));//5mm
   				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
-		
+
 			sT.add(m = new MenuItem(menuThick[++index]));//10mm
   				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
 		mb.add(sT);
-		
-	}	
-	
+
+	}
+
 
   public Image zconstruc() {
-  /* Aeffacer :	
+  /* Aeffacer :
   		int[] points  = new int [w] ;
-  		
-	// position des points 
+
+	// position des points
 		for (int i = 0; i < w ; i ++ )
 			points[i] = 	y*w + i ;
 ///*/
 
-	// taille de l'image ˆ reconstruire :
+	// taille de l'image Ã  reconstruire :
 		int[] zpixels  = new int[zh * w] ;
 		int y = dc.y1 ;
 	// Remplir le tableau de pixels :
@@ -122,23 +122,23 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 		 for(int i =0 ; i < vimages.size() ; i++){
 	 		 po = (PixObject)vimages.elementAt(i);
 			img   = po.image ;
-			
+
 			PixelGrabber pg = new PixelGrabber(img,0,y,w,1,pixels,0,w);
 			try{ pg.grabPixels();} catch(InterruptedException e){;}
-			// remplir le tableau zpixels 
-			
+			// remplir le tableau zpixels
+
 			for(int j = 0 ; j< thickness ; j++)	{
 				System.arraycopy(pixels, 0, zpixels,offset, w);
 				 //(Object src, intsrc_position,object dest ,int dest_postion,int length )
 				offset += w ;
 			}//endfor j
 		}//endfor i
- 		return  createImage(new MemoryImageSource(w,zh,zpixels,0,w)); 
+ 		return  createImage(new MemoryImageSource(w,zh,zpixels,0,w));
 
 	}
-  	
+
   	public void zUpdate(){
-			
+
 		zCanvas.setImage( zconstruc() );
 		zCanvas.repaint() ;
 //		f.repaint() ;
@@ -153,29 +153,29 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 public PixelGrabber(Image img,int x, int y,  int w, int h, int pix[],int off,int scansize)
 
 Create a PixelGrabber object to grab the (x, y, w, h) rectangular section of pixels from the specified image
-into the given array. The pixels are stored into the array in the default RGB ColorModel. 
+into the given array. The pixels are stored into the array in the default RGB ColorModel.
 
-The RGB  data for pixel (i, j) where (i, j) is inside the rectangle (x, y, w, h) is stored 
-in the array at pix[(j - y) * scansize + (i - x) + off]. 
+The RGB  data for pixel (i, j) where (i, j) is inside the rectangle (x, y, w, h) is stored
+in the array at pix[(j - y) * scansize + (i - x) + off].
 
-Parameters: 
-img - the image to retrieve pixels from 
-x - the x coordinate of the upper left corner of the rectangle of pixels to retrieve from the 
-image, relative to the default (unscaled) size of the image 
+Parameters:
+img - the image to retrieve pixels from
+x - the x coordinate of the upper left corner of the rectangle of pixels to retrieve from the
+image, relative to the default (unscaled) size of the image
 y - the y coordinate of the upper left corner of the rectangle of pixels to retrieve from the image
 
 w - the width of the rectangle of pixels to retrieve
 
-h - the height of the rectangle of pixels to retrieve pix - the array of integers which are to be used 
-to hold the RGB pixels retrieved from the image 
+h - the height of the rectangle of pixels to retrieve pix - the array of integers which are to be used
+to hold the RGB pixels retrieved from the image
 
-off - the offset into the array of where to store the first pixel 
+off - the offset into the array of where to store the first pixel
 
-scansize - the distance from one row of pixels to the next  in the array 
+scansize - the distance from one row of pixels to the next  in the array
 
 */
-  
-  
+
+
 public void paint( Graphics g){
 	//g.drawImage(img,0,0,w,h,0,0,w,h,this) ;
 	//g.drawImage(img,0,0,w,h,this) ;//marche pas !
@@ -187,7 +187,7 @@ public void update(Graphics g){
 	paint(g) ;
 }
 
-public void show(){ 
+public void show(){
 	super.show() ;
 	repaint() ;
 	}
@@ -204,7 +204,7 @@ public void setThickness(int mm){
 		zCanvas.setImage(zImg ) ;
 		f.setSize(w , zh+ 20 ) ;
 		repaint() ;
-}		
+}
 
 public boolean isDental(){ return parent.dental ;}
 
@@ -218,10 +218,10 @@ public void actionPerformed(ActionEvent e){
 		else if(s.equals("2")) setThickness(2) ;
 		else if(s.equals("5")) setThickness(5) ;
 		else if(s.equals("10")) setThickness(10) ;
-	
+
 }
 
-//windowListener; 
+//windowListener;
   public void windowClosing(WindowEvent e) { this.dispose(); }
   public void windowOpened(WindowEvent e) {}
   public void windowClosed(WindowEvent e) {}

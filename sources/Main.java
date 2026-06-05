@@ -1,34 +1,14 @@
-// Main.java
-import java.util.* ;
-import com.sderhy.*;
-
 public final  class Main
 {
-	public static boolean isApplet = false ;
-	public static java.applet.Applet applet ;
-	private static String msg, leMessage ;
-
-	
 	public static void main(String args[]){
-				if(Main.isApplet){
-					if(args != null){
-						java.net.URL url;
-						try { url = new java.net.URL(args[0]) ;
-							MainClass.isApplet = Main.isApplet ;	
-							MainClass MC =  new MainClass(" eViewBox ");
-							MC.applet =  applet ;
-							MC.canvas.loadFileSet(url) ;
-										
-						}catch (java.net.MalformedURLException m){
-							m.printStackTrace();
-							MainClass.main() ; 	
-						}
-					}//end if args !=0	
-				}else {
-					
-					com.sderhy.MainClass MC = new com.sderhy.MainClass("EViewBox !") ;
-					 		
-				}	
+		com.sderhy.MainClass MC = new com.sderhy.MainClass("EViewBox !");
+		if(args != null && args.length > 0){
+			try {
+				MC.canvas.loadFileSet(new java.net.URL(args[0]));
+			}catch (java.net.MalformedURLException m){
+				m.printStackTrace();
+			}
+		}
 	}
 	public static void  quit(){
 		com.sderhy.Winager.closeAll() ;

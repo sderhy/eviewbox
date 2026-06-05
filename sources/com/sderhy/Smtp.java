@@ -18,8 +18,8 @@ public class Smtp {
 	public static final String crlf ="\r\n" ;
 	public Smtp(){}
 	public Smtp(String host,
-				String recipient, 
-				String sender, 
+				String recipient,
+				String sender,
 				String senderHost,
 				String[] message )
 									throws IOException{
@@ -31,7 +31,7 @@ public class Smtp {
 		this.senderHost = senderHost ;
 	}
 	public Smtp(String host,
-				String sender, 
+				String sender,
 				String senderHost )
 									throws IOException{// pour messages multiples
 		this.host = host;
@@ -43,7 +43,7 @@ public class Smtp {
 		connect() ;
 	}
 	public void close() /*throws IOException*/{
-		
+
 		try{
 		out.writeBytes(crlf+"QUIT\r\n");
 		in.close();
@@ -55,9 +55,9 @@ public class Smtp {
 				sessionSocket = null;
 				}catch(Exception ignore){ ignore.fillInStackTrace();}
 		}
-	
-	
-	}	
+
+
+	}
 	public void connect() throws IOException {
 		sessionSocket = new Socket (host ,port ) ;
 		dbg("connection  a :"+ host + " port  :"+ port );
@@ -71,47 +71,47 @@ public class Smtp {
 		dbg("La reponse est :" + reponse );
 		return reponse ;
 	}
-	
+
 	protected void  isErr(String reponse) throws IOException{
 		if(reponse.charAt(0) !='2')
 			throw new IOException( reponse ) ;
 	}
 
-	
-	
+
+
 	public String getResponse() throws IOException{
 		String reponse = "" ;
 		for(;;){
 			String line = in.readLine() ;
 			if(line == null) throw new IOException("Mauvaise reponse du serveur") ;
-			if(line.length() < 3 )throw new IOException (" Réponse inconnue : " + line );
+			if(line.length() < 3 )throw new IOException (" RÃ©ponse inconnue : " + line );
 			reponse += line + "\n";
-		//utile :???	
+		//utile :???
 			if((line.length()==3) || (line.charAt(3)!= '-'))
-				return reponse ; 
+				return reponse ;
 			}//end for
-		}//end method getResponse 
-	
+		}//end method getResponse
+
 
 	public void sendMessages(String recipient,String[] message ) throws IOException{
 		//( response from the server...welcome...)
 		if(sessionSocket == null) throw new IOException("Session  null ") ;
 		if(senderHost == null ) throw new IOException("SenderHost null" ) ;
-		
-		String reponse =""; 
+
+		String reponse ="";
 		reponse = doCommand("HELO "+ senderHost);
 		isErr(reponse);
 		//attention il faut parfois ajouter le nom de l'hote
 		reponse = doCommand("MAIL FROM: <" + sender +">");//sender "<"+sender+">"
 		isErr(reponse) 	;
-		
+
 		reponse = doCommand("RCPT TO: <" + recipient+">" ) ;
 		isErr(reponse ) ;
-		
+
 		reponse = doCommand("DATA" ) ;
 		//la reponse commence par un 3 si le serveur attend les donnees.
 		if(reponse.charAt(0)!= '3' ) throw new IOException(reponse) ;
-		
+
 		//envoi du message ligne par ligne :
 		for(int i= 0 ; i< message.length ; i++){
 
@@ -126,12 +126,12 @@ public class Smtp {
 						dbg(  message[i] ) ;
 						}
 		}//end for
-		
+
 		reponse = doCommand(crlf + "." );
 		isErr(reponse);
 
 	}//fin de SendMessages.
-	
+
 	public void sendMessage(String[] message) throws IOException{
 		connect() ;
 		String reponse = getResponse() ;
@@ -142,14 +142,14 @@ public class Smtp {
 		//attention il faut parfois ajouter le nom de l'hote
 		reponse = doCommand("MAIL FROM: <" + sender +">");//sender "<"+sender+">"
 		isErr(reponse) 	;
-		
+
 		reponse = doCommand("RCPT TO: <" + recipient+">" ) ;
 		isErr(reponse ) ;
-		
+
 		reponse = doCommand("DATA" ) ;
 		//la reponse commence par un 3 si le serveur attend les donnees.
 		if(reponse.charAt(0)!= '3' ) throw new IOException(reponse) ;
-		
+
 		//envoi du message ligne par ligne :
 		for(int i= 0 ; i< message.length ; i++){
 
@@ -164,12 +164,12 @@ public class Smtp {
 					dbg(  message[i] ) ;
 			}
 		}//end for
-		
+
 		reponse = doCommand(crlf+"." +crlf);
 		isErr(reponse);
-		
+
 	}//fin de methode
-		
+
 		public void dbg(String message ){
 			if(debug)System.out.println(">>>"+message) ;
 		}
