@@ -13,7 +13,8 @@ public class OpenGif  {
 
 	public static int numImage = 0 ;
 	public static boolean fromFile(String fileName, MainClass mc){
-		
+		if(fileName == null) return false;
+
 		TextField TF = mc.TF ;
 		PixCanvas canvas  = mc.canvas ;
 		String suffix ="";
@@ -21,7 +22,7 @@ public class OpenGif  {
 		
 		try{  
 	
-			url = new File(fileName).toURL() ;//new URL(fileURL) ;
+			url = new File(fileName).toURI().toURL() ;//new URL(fileURL) ;
 		
 			TF.setText(url.toString()) ;
 			
@@ -77,10 +78,11 @@ suffix.equalsIgnoreCase(".jpeg")){
 		TextField TF = mc.TF ;
 		PixCanvas canvas  = mc.canvas ;
 		String file = Futil.openDialog(mc);
+		if(file == null) return false;
 		String suffix ="";
 		URL url = null;
 		try{  
-			url = new File(file). toURL() ;
+			url = new File(file).toURI().toURL() ;
 			TF.setText( url.toString()  ) ;			
 		}
 			catch (MalformedURLException e){
