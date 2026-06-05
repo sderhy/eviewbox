@@ -2,6 +2,14 @@
 
 eViewBox est une application Java AWT historique pour visualiser et manipuler des images medicales et bitmap, avec prise en charge GIF, DICOM, JPEG, BMP et PPM selon les modules presents dans `sources/`.
 
+## Historique
+
+Ce depot GitHub est la suite du projet historique Eviewbox DICOM java project publie sur SourceForge:
+
+https://sourceforge.net/projects/eviewbox/files/Eviewbox/
+
+La page SourceForge reference des archives publiees en 2001, dont `Eviewbox.jar`, `Application and Sources` et `Sources of Eviewbox`.
+
 Le code provient d'un ancien depot CVS: les repertoires `CVS/` sont conserves dans l'arborescence locale, mais ignores par Git.
 
 ## Etat actuel
