@@ -138,7 +138,7 @@ import java.io.*;
     			PixObject po = (PixObject)vimages.elementAt(lastSel) ;
     				if(po != null){
     					if(po.isShowing == false ){
-    					PixObjectViewer iw = new PixObjectViewer( po ) ;
+							PixObjectViewer iw = new PixObjectViewer( po, this ) ;
 
     					iw.show();
     					frame.TF.setText( "Opening image " + po.url ) ;
@@ -547,4 +547,3 @@ import java.io.*;
 //////////////////////////////////////////////////////////////////////////////////////////
 
 //!}//end of class.
-

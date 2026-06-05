@@ -10,34 +10,44 @@ import java.awt.event.* ;
 //import PixObject ;
 import tools.* ;
 
-public class PixObjectViewer extends ImageViewer {
-PixObject po ;
-InfoFrame infoFrame ;
-boolean isShowingInfo = false ;
+public class PixObjectViewer extends ImageViewer implements KeyListener {
+	PixObject po ;
+	PixCanvas sourceCanvas ;
+	InfoFrame infoFrame ;
+	boolean isShowingInfo = false ;
+	boolean dicomMenuInstalled = false ;
 
-	public PixObjectViewer ( PixObject po){
-		super(po.image) ;
-		this.po = po;
-		if(po.isDicom) init() ;
-		}// end Of constructor
-		
-	public void init()	{
-	
-		MenuBar mb = this.getMenuBar() ;
-	 	Menu dicomMenu =  new Menu("Dicom") ;
-	 	MenuItem m ;
-	 	dicomMenu.add(m = new MenuItem("See Attributes"));//Undo
-	 	m.addActionListener(this);
-		mb.add(dicomMenu);	
-		dicomMenu.add(m = new MenuItem("Hide Attributes"));//Undo
-	 	m.addActionListener(this);
-		mb.add(dicomMenu);
-		
-		
-		
+		public PixObjectViewer ( PixObject po){
+			this(po, null);
+			}// end Of constructor
+
+		public PixObjectViewer ( PixObject po, PixCanvas sourceCanvas){
+			super(po.image) ;
+			this.po = po;
+			this.sourceCanvas = sourceCanvas;
+			addKeyListener(this);
+			enableEvents(AWTEvent.KEY_EVENT_MASK);
+			if(po.isDicom) init() ;
+			}// end Of constructor
+
+		public void init()	{
+			if(dicomMenuInstalled) return ;
+
+			MenuBar mb = this.getMenuBar() ;
+			Menu dicomMenu =  new Menu("Dicom") ;
+			MenuItem m ;
+			dicomMenu.add(m = new MenuItem("See Attributes"));//Undo
+			m.addActionListener(this);
+			dicomMenu.add(m = new MenuItem("Hide Attributes"));//Undo
+			m.addActionListener(this);
+			mb.add(dicomMenu);
+			dicomMenuInstalled = true ;
+
+
+
 	}//endOfInit(
-	
-	
+
+
 	public void  hide(){
 				if(isShowingInfo && infoFrame!=null){
 					infoFrame.hide() ;
@@ -46,20 +56,21 @@ boolean isShowingInfo = false ;
 				po.isShowing = false ;
 				super.hide() ;
 				}
-/*	
+/*
 	public void dispose(){
 		hide();
 		super.dispose() ;
 	}
 //*/
 	public  void actionPerformed(ActionEvent e){
-		
+
 		if(e.getActionCommand() == "print"){
 			 print() ;
-		
+
 		}
-		else if(e.getActionCommand() == "See Attributes"){
-			if(isShowingInfo && infoFrame!=null){
+			else if(e.getActionCommand() == "See Attributes"){
+				if(po.getInfo() == null) return ;
+				if(isShowingInfo && infoFrame!=null){
 					infoFrame.toFront();
 					 return ;
 			}
@@ -67,7 +78,7 @@ boolean isShowingInfo = false ;
 			TextArea ta = new TextArea(  ) ;
 			ta.setText("Here are the information for the file : \n\n") ;
 			ta.appendText("URL : " + po.url.toString()+ "\n\n");
-			
+
 			ta.setFont(new Font("Monaco",Font.PLAIN, 10));
 			infoFrame.add(ta) ;
 			String[] attribute =	po.getInfo() ;
@@ -78,8 +89,8 @@ boolean isShowingInfo = false ;
 			infoFrame.show();
 			isShowingInfo = true ;
 		//	infoFrame.addWindowListener()
-		
-				
+
+
 		}
 		else if(e.getActionCommand() == "Hide Attributes"){
 			if(isShowingInfo && infoFrame!=null){
@@ -94,35 +105,82 @@ boolean isShowingInfo = false ;
 			repaint();
 			}
 
-		else super.actionPerformed(e);
-	}
-	/*
-	 public void show(){
-	 	
-	 	super.show() ;
-	 	po.isShowing = true ;
-	 }
-	//*/
-	 public void print(){
-    	
-    	Toolkit toolkit = getToolkit() ;
-		
+			else super.actionPerformed(e);
+		}
+		 public void show(){
+			super.show() ;
+			po.isShowing = true ;
+			requestFocus();
+		 }
+
+		public void keyPressed(KeyEvent e){
+			if(e.getKeyCode() == KeyEvent.VK_RIGHT) {
+				showSibling(1);
+				e.consume();
+			}
+			else if(e.getKeyCode() == KeyEvent.VK_LEFT) {
+				showSibling(-1);
+				e.consume();
+			}
+		}
+
+		public void keyReleased(KeyEvent e){}
+		public void keyTyped(KeyEvent e){}
+
+		private void showSibling(int increment){
+			if(sourceCanvas == null || sourceCanvas.vimages == null || sourceCanvas.vimages.isEmpty()) return ;
+			int index = sourceCanvas.vimages.indexOf(po);
+			if(index < 0) return ;
+			int size = sourceCanvas.vimages.size();
+			int nextIndex = (index + increment + size) % size;
+			PixObject next = (PixObject)sourceCanvas.vimages.elementAt(nextIndex);
+			if(next == null) return ;
+
+			if(isShowingInfo && infoFrame != null){
+				infoFrame.hide();
+				infoFrame.dispose();
+				isShowingInfo = false;
+				infoFrame = null;
+			}
+			po.isShowing = false ;
+			po = next ;
+			po.isShowing = true ;
+			image = po.image ;
+			origPic = image ;
+			w = po.w ;
+			h = po.h ;
+			DrawLayout = false ;
+			layoutString = "";
+			sourceCanvas.lastSel = nextIndex ;
+			sourceCanvas.frame.TF.setText(po.url.toString());
+			sourceCanvas.repaint();
+			if(po.isDicom) init() ;
+			setTitle("Image " + (nextIndex + 1) + " / " + size);
+			arrangeIt();
+			repaint();
+			requestFocus();
+		}
+
+		 public void print(){
+
+	Toolkit toolkit = getToolkit() ;
+
 		java.util.Properties printPrefs = new java.util.Properties();
-		
+
 		PrintJob job = toolkit.getPrintJob(this, "Print Image", printPrefs);
 		if(job == null) return ;
-    	Graphics g  = job.getGraphics() ;
+	Graphics g  = job.getGraphics() ;
 			g.translate(50,50) ;
 			Dimension size = this.getSize() ;
 			g.drawString ("URL ://" + po.url , -2, -12);
 			g.drawRect(-1,-1,size.width +1, size.height +1);
 			g.setClip(0,0, size.width, size.height);
-			//g.drawImage(applet.toDisplay , 10 ,20, this );		
+			//g.drawImage(applet.toDisplay , 10 ,20, this );
 			paint(g) ;
 			g.dispose();
 			job.end();
     }
-/////////////////////InfoFrame///////////////////////////////////////	
+/////////////////////InfoFrame///////////////////////////////////////
 class InfoFrame extends java.awt.Frame implements WindowListener {
 	PixObjectViewer pov ;
 		public InfoFrame(PixObjectViewer pov , String title) {
@@ -130,24 +188,24 @@ class InfoFrame extends java.awt.Frame implements WindowListener {
 			this.pov = pov ;
 			this.addWindowListener(this) ;
 			}
-			
-			
+
+
 	public void windowClosing(WindowEvent e) {
 			 pov.isShowingInfo = false ;
-			 this.hide() ;	
-			 this.dispose(); 
+			 this.hide() ;
+			 this.dispose();
 	}
-  	public void windowOpened(WindowEvent e) {}
-  	public void windowClosed(WindowEvent e) {}
-  	public void windowIconified(WindowEvent e) {}
-  	public void windowDeiconified(WindowEvent e) {}
-  	public void windowActivated(WindowEvent e) {}
-  	public void windowDeactivated(WindowEvent e) {}		
-			
-	
-	}//end of class infoFrame	
-	
-	
+	public void windowOpened(WindowEvent e) {}
+	public void windowClosed(WindowEvent e) {}
+	public void windowIconified(WindowEvent e) {}
+	public void windowDeiconified(WindowEvent e) {}
+	public void windowActivated(WindowEvent e) {}
+	public void windowDeactivated(WindowEvent e) {}
+
+
+	}//end of class infoFrame
+
+
 }// end of class
 
 
