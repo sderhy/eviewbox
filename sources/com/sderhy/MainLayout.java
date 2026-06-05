@@ -23,7 +23,7 @@ public class MainLayout
 //	static Menu help;
 	//static Frame f;
 	public final static String[] commands = new String[] {
-	"Open Multiple ...", "OpenFolder",
+	"Open Image Folder...", "OpenFolder",
 	"Open Image ...","OpenGIF",
 	"Open  Dicom...","OpenDicom",
 	"Parse File...", "ParseFile",
@@ -41,7 +41,7 @@ public class MainLayout
 	"Cut" , "Cut",
 	"Copy","Copy" ,
 	"Past","Past" ,
-	"Clear All" , "clearAll" ,
+	"Clear Icons" , "clearAll" ,
 	"Change Background","bg",
 	"Change Size","size",
 	"Mail To...", "MailTo" ,
@@ -119,6 +119,9 @@ public class MainLayout
 		MenuItem m;//  m est utilisée pour souscrire aux ActionListener;
 		file.add(m=new MenuItem(commands[index]));// OpenFolder
 			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
+		file.add(m=new MenuItem("Clear Icons"));
+			m.addActionListener(al);m.setActionCommand("clearAll") ;
+		file.addSeparator();
 		file.add(m = new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_O)));//OpenGIF
 			m.addActionListener(al);
 			m.setActionCommand(commands[++index]) ;

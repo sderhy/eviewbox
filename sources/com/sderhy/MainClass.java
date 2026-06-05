@@ -110,14 +110,16 @@ public class MainClass extends Frame  implements WindowListener{
  public void OpenFolder(){
  	Tools.debug(this, "OpenFolder") ;
 	JFileChooser chooser = new JFileChooser(System.getProperty("user.dir"));
-	chooser.setDialogTitle("Open images folder");
+	chooser.setDialogTitle("Open Images Folder");
+	chooser.setApproveButtonText("Open");
+	chooser.setApproveButtonToolTipText("Open images from the selected folder");
 	chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 	chooser.setAcceptAllFileFilterUsed(false);
 
 	if(chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return ;
 
 	File dir = chooser.getSelectedFile();
-	Tools.debug("choosen dir = "+ dir);
+	Tools.debug("chosen dir = "+ dir);
 	if(dir == null || !dir.isDirectory()) return ;
 
 	File[] files = dir.listFiles();
