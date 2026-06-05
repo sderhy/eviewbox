@@ -8,6 +8,7 @@ package com.sderhy ;
 import java.net.* ;
 import java.awt.*;
 import java.io.* ;
+import java.util.Arrays;
 import java.util.Vector;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -126,13 +127,13 @@ public class MainClass extends Frame  implements WindowListener{
 
 	File[] files = dir.listFiles();
 	if(files == null) return ;
+	Arrays.sort(files);
 	for (int i = 0 ; i< files.length ; i++){
 		File file = files[i];
 		if(!file.isDirectory()) {
 			String theFile = file.getAbsolutePath();
 			Tools.debug("The image number  " + i + " is " + theFile);
-			OpenGif.fromFile(theFile,this);
-			repaint() ;
+			if(OpenGif.fromFile(theFile,this)) repaint() ;
 		}//endif
 	} //endFor
 
