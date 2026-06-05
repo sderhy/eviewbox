@@ -120,6 +120,7 @@ public class MainClass extends Frame  implements WindowListener{
 	if(chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return ;
 
 	File dir = chooser.getSelectedFile();
+	if(dir == null) dir = chooser.getCurrentDirectory();
 	Tools.debug("chosen dir = "+ dir);
 	if(dir == null || !dir.isDirectory()) return ;
 	lastOpenDirectory = dir;
