@@ -25,11 +25,15 @@ build/eviewbox.jar
 
 ## Lancer
 
+Depuis la racine du projet, la commande la plus simple est:
+
 ```sh
 make run
 ```
 
-ou directement:
+Elle compile le projet si necessaire, genere `build/eviewbox.jar`, puis lance l'application.
+
+On peut aussi lancer directement le JAR deja genere:
 
 ```sh
 java -jar build/eviewbox.jar
@@ -66,4 +70,3 @@ git push -u origin main
 - Desactiver les traces de debug permanentes dans les lecteurs DICOM.
 - Remplacer l'applet par un point d'entree desktop documente ou une interface moderne.
 - Ajouter quelques images de test non sensibles pour valider GIF/DICOM/JPEG/BMP.
-
