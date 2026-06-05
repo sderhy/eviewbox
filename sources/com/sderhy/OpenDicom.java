@@ -20,64 +20,69 @@ public class OpenDicom {
 		TF.setText( url.toString() ) ;
 		DataInputStream  in ;
 		File file;
-		try{
-			URLConnection u = url.openConnection();
-			in = new DataInputStream(u.getInputStream()) ;
+			try{
+				URLConnection u = url.openConnection();
+				in = new DataInputStream(u.getInputStream()) ;
 			int size = u.getContentLength() ;
-			
+
 			byte[] array = new byte[size];
 			int bytes_read = 0;
-			while(bytes_read < size){	
+			while(bytes_read < size){
 						bytes_read += in.read(array, bytes_read, size - bytes_read);
 			}//endwhile
 			in.close();
-			
-			DicomReader dR = new DicomReader(array) ;
-		   	
-		   	images = dR.getImages();
-			
-			info =  dR.getInfos();
-		
-		}catch (IOException e){ 
-			tools.Tools.debug("exception "+ e);
-			TF.setText("Error file format not recognized" );
-			return false;
-		}//end of try-catch
-		
-		// A great modification made by Michael Pasternak to 
-		//open multiple images : (Thank you Mike !)
-	  MediaTracker tr = new MediaTracker(canvas ) ;
-			System.out.println("Images found " + images.length);
-    
-			for (int i = 0 ; i < images.length; i++) {
-      tr.addImage(images[i], i);
-      try{tr.waitForID(i) ;} catch(InterruptedException e) {};
-      if (tr.isErrorID(i)){
-        TF.setText("Error while loading file...  try again");
-        Tools.debug(tr.getErrorsAny().toString() ) ;
-        return  false;
-      }
-      System.out.println("Adding image " + i);
-      if (images[i] == null) {
-        System.out.println("Image is null!");
-      }      
-      PixObject po = new PixObject(url, images[i], canvas, true,info ) ;
-      mc.vimages.addElement(po) ;
-      po.isDicom = true ;
-      canvas.repaint() ;
-    }
-		return true;
-	}//end fromFile	
-/**************************************************************************/	
-	public static boolean fromFile(MainClass mc ) {	
+
+				DicomReader dR = new DicomReader(array) ;
+
+				images = dR.getImages();
+
+				info =  dR.getInfos();
+				DicomHeaderReader header = dR.getDicomHeaderReader();
+
+				// A great modification made by Michael Pasternak to
+				//open multiple images : (Thank you Mike !)
+			  MediaTracker tr = new MediaTracker(canvas ) ;
+					System.out.println("Images found " + images.length);
+
+					for (int i = 0 ; i < images.length; i++) {
+		      tr.addImage(images[i], i);
+		      try{tr.waitForID(i) ;} catch(InterruptedException e) {};
+		      if (tr.isErrorID(i)){
+		        TF.setText("Error while loading file...  try again");
+		        Tools.debug(tr.getErrorsAny().toString() ) ;
+		        return  false;
+		      }
+		      System.out.println("Adding image " + i);
+		      if (images[i] == null) {
+		        System.out.println("Image is null!");
+		      }
+		      PixObject po = new PixObject(url, images[i], canvas, true,info ) ;
+		      po.sliceThickness = header.getSliceThicknessValue();
+		      po.spacingBetweenSlices = header.getSpacingBetweenSlicesValue();
+		      po.sliceLocation = header.getSliceLocationValue();
+		      po.pixelSpacingRow = header.getPixelSpacingRowValue();
+		      po.pixelSpacingColumn = header.getPixelSpacingColumnValue();
+		      mc.vimages.addElement(po) ;
+		      po.isDicom = true ;
+		      canvas.repaint() ;
+		    }
+			}catch (IOException e){
+				tools.Tools.debug("exception "+ e);
+				TF.setText("Error file format not recognized" );
+				return false;
+			}//end of try-catch
+			return true;
+		}//end fromFile
+/**************************************************************************/
+	public static boolean fromFile(MainClass mc ) {
 		String fileURL = "File:" + Futil.openDialog(mc);
-		URL url = null;		
+		URL url = null;
 		try{  url = new URL(fileURL) ;}
 		catch (MalformedURLException e){
 				mc.TF.setText("Not a valid File URL" );
 				return  false;
 		}
 		return fromURL(url, mc)	;
-	}//end of openDicom.fromFile()	 
-	
+	}//end of openDicom.fromFile()
+
 }//end of class

@@ -23,7 +23,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 ZCanvas zCanvas ;
 	Panel supP,infP,leftP,rightP ;
 
- 	public MenuBar mb ;
+	public MenuBar mb ;
 	public String[] menuFile  = new String[] {"Close" ,"close", "Print...", "print" , "Save...","save" };
 	public String[] menuThick = new String[] { "1 mm","1","2 mm","2","5mm","5","10 mm","10"};
 
@@ -33,20 +33,21 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 
     vimages = orig.getVector();
     numberOfImages = vimages.size() ;
-    zh = thickness * numberOfImages ;
     currentImage =numberOfImages - 1;
 
     img =  getImageNumber(currentImage) ;
     w = img.getWidth(this) ;
     h = img.getHeight(this) ;
+    thickness = getSliceThicknessInPixels();
+    zh = thickness * numberOfImages ;
 
 	 dc = new DrawableCanvas(this) ;
     // dc.setSize(w, h) ;
      this.add("North",supP = new Panel());
 	 this.add("East",leftP =new Panel());
 	 infP =new Panel();
- 	this.add("West",rightP = new Panel());
- 	this.add("Center", dc) ;
+	this.add("West",rightP = new Panel());
+	this.add("Center", dc) ;
 
 	zImg = zconstruc();
 	zCanvas = new ZCanvas( zImg, w ,zh ) ;
@@ -62,41 +63,41 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	this.setSize(w + 20 , h +10/* + zh*/) ;
 	setResizable(false);
     this.addWindowListener(this);
-  	f.setLocation( 10 , 10 ) ;
-  	f.show() ;
+	f.setLocation( 10 , 10 ) ;
+	f.show() ;
 
-  	arrange() ;
+	arrange() ;
   //	addActionListener(this);
 
-   	this.setLocation( 100  , /*f.getSize().height/2 */+ 30 ) ;
-   	f.toFront();
+	this.setLocation( 100  , /*f.getSize().height/2 */+ 30 ) ;
+	f.toFront();
    }
 
 	protected void arrange(){
-  		MenuItem m = null;
-  		int index = 0;
-  		mb = new MenuBar() ;
-  		this.setMenuBar(mb);
+		MenuItem m = null;
+		int index = 0;
+		mb = new MenuBar() ;
+		this.setMenuBar(mb);
 		Menu file = new Menu( "File" );
-  			file.add(m = new MenuItem(menuFile[index], new MenuShortcut(KeyEvent.VK_W)));//Close
-  				m.addActionListener(this);m.setActionCommand(menuFile[++index]) ;
+			file.add(m = new MenuItem(menuFile[index], new MenuShortcut(KeyEvent.VK_W)));//Close
+				m.addActionListener(this);m.setActionCommand(menuFile[++index]) ;
 			file.add(m = new MenuItem(menuFile[++index], new MenuShortcut(KeyEvent.VK_P)));//Print
-  				m.addActionListener(this);m.setActionCommand(menuFile[++index]) ;
+				m.addActionListener(this);m.setActionCommand(menuFile[++index]) ;
 			file.add(m = new MenuItem(menuFile[++index], new MenuShortcut(KeyEvent.VK_S)));//Save
 				m.addActionListener(this);m.setActionCommand(menuFile[index]) ;
 		mb.add(file);
 		 Menu sT = new Menu("Thickness" ) ;
 			sT.add(m = new MenuItem(menuThick[index = 0]));//1mm
-  				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
+				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
 
 			sT.add(m = new MenuItem(menuThick[++index]));//2mm
-  				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
+				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
 
 			sT.add(m = new MenuItem(menuThick[++index]));//5mm
-  				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
+				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
 
 			sT.add(m = new MenuItem(menuThick[++index]));//10mm
-  				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
+				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
 		mb.add(sT);
 
 	}
@@ -104,7 +105,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 
   public Image zconstruc() {
   /* Aeffacer :
-  		int[] points  = new int [w] ;
+		int[] points  = new int [w] ;
 
 	// position des points
 		for (int i = 0; i < w ; i ++ )
@@ -120,7 +121,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 		 int[] pixels = new int [w] ;
 		 int offset = 0 ;
 		 for(int i =0 ; i < vimages.size() ; i++){
-	 		 po = (PixObject)vimages.elementAt(i);
+			 po = (PixObject)vimages.elementAt(i);
 			img   = po.image ;
 
 			PixelGrabber pg = new PixelGrabber(img,0,y,w,1,pixels,0,w);
@@ -133,11 +134,11 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 				offset += w ;
 			}//endfor j
 		}//endfor i
- 		return  createImage(new MemoryImageSource(w,zh,zpixels,0,w));
+		return  createImage(new MemoryImageSource(w,zh,zpixels,0,w));
 
 	}
 
-  	public void zUpdate(){
+	public void zUpdate(){
 
 		zCanvas.setImage( zconstruc() );
 		zCanvas.repaint() ;
@@ -197,6 +198,21 @@ protected Image getImageNumber(int num){
 	 return po.image ;
 
 }
+private int getSliceThicknessInPixels(){
+	if(vimages == null || vimages.isEmpty()) return thickness ;
+	PixObject po = (PixObject)vimages.firstElement();
+	double sliceSpacing = po.spacingBetweenSlices;
+	if(sliceSpacing <= 0) sliceSpacing = po.sliceThickness;
+	if(sliceSpacing <= 0 && vimages.size() > 1){
+		PixObject next = (PixObject)vimages.elementAt(1);
+		if(po.sliceLocation > -1 && next.sliceLocation > -1)
+			sliceSpacing = Math.abs(next.sliceLocation - po.sliceLocation);
+	}
+	double pixelSpacing = po.pixelSpacingRow;
+	if(pixelSpacing <= 0) pixelSpacing = po.pixelSpacingColumn;
+	if(sliceSpacing <= 0 || pixelSpacing <= 0) return thickness ;
+	return Math.max(1, (int)Math.round(sliceSpacing / pixelSpacing));
+}
 public void setThickness(int mm){
 		this.thickness = mm * 3 ;
 		zh = thickness * numberOfImages ;
@@ -210,7 +226,7 @@ public boolean isDental(){ return parent.dental ;}
 
 //ActionListener :
 public void actionPerformed(ActionEvent e){
- 		String s = e.getActionCommand() ;
+		String s = e.getActionCommand() ;
 		if (s.equals("close"))  this.dispose() ;
 		else if(s.equals("print")) tools.Tools.debug(this, " Print command not  implemented yet") ;
 		else if(s.equals("save")) tools.Tools.debug(this, " Save command not  implemented yet") ;
