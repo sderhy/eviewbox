@@ -19,11 +19,13 @@ public class MainClass extends Frame  implements WindowListener{
 	public TextField TF;
 	public PixCanvas canvas;
 	public Vector vimages ;
+	private File lastOpenDirectory ;
 	public MainClass( String title){
 		super( title ) ;
 		TF = new TextField(80) ;
 		//TA = new TextArea();
 		vimages = new Vector(32,32);
+		lastOpenDirectory = new File(System.getProperty("user.dir"));
 
 		int screenH = Toolkit.getDefaultToolkit().getScreenSize().height;
 	 	int screenW = Toolkit.getDefaultToolkit().getScreenSize().width;
@@ -109,7 +111,7 @@ public class MainClass extends Frame  implements WindowListener{
 
  public void OpenFolder(){
  	Tools.debug(this, "OpenFolder") ;
-	JFileChooser chooser = new JFileChooser(System.getProperty("user.dir"));
+	JFileChooser chooser = new JFileChooser(lastOpenDirectory);
 	chooser.setDialogTitle("Open Images Folder");
 	chooser.setApproveButtonText("Open");
 	chooser.setApproveButtonToolTipText("Open images from the selected folder");
@@ -121,6 +123,7 @@ public class MainClass extends Frame  implements WindowListener{
 	File dir = chooser.getSelectedFile();
 	Tools.debug("chosen dir = "+ dir);
 	if(dir == null || !dir.isDirectory()) return ;
+	lastOpenDirectory = dir;
 
 	File[] files = dir.listFiles();
 	if(files == null) return ;
