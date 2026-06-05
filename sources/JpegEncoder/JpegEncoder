@@ -1,0 +1,52 @@
+A JPEG Encoder written in Javaª
+
+                                  And it can write to a file, too!
+
+James R. Weeks of BioElectroMech, in desperation for a Java JPEG encoder, has
+written one.  It is provided here
+FREE!
+
+                                              DOWNLOAD
+
+This encoder is an implementation of the baseline JPEG specification and saves
+files in the JFIF format.   In order
+to use it in your Java applications, simply create a JpegEncoder object,
+specifying an image, the desired quality, and
+an OutputStream, and then call that object's Compress method:
+
+       ...
+
+       JpegEncoder jpg = new JpegEncoder(image, quality, outStream);
+
+       jpg.Compress();
+
+       ...
+
+The JpegEncoder object has its own MediaTracker, so you can just create an image
+object and initialize it to get
+image.   
+
+quality may be any integer from 0 to 100.  0 is maximum compression and 100 is
+minimum compression.  70 - 80 is
+an excellent range but 50 gives good results--the image degradation is just
+noticeable (and for the test image, the
+resulting jpeg file size was 3% of the original BMP file).
+
+Any OutputStream can be sent to the JpegEncoder object.  JpegEncoder creates a
+BufferedOutputStream using the
+outStream object.
+
+Included in this release is Jpeg.java, a command line interface that allows the
+user to create a JPEG file from
+any of the image formats that the Java Virtual Machine can read.  Jpeg.java also
+provides an excellent example of
+how to use the JpegEncoder in your own applications.
+
+Inspiration for this encoder was provided by Florian Raemy's JPEG encoder--the
+one that doesn't write a file.  
+More importantly, a major portion of the code was based on the C code in the
+Independent JPEG Group's 6a
+release of their JPEG library.  A few things were done differently to take
+advantage of Java's capabilities.  The result
+is a surprisingly fast JPEG encoder and JFIF writer.
+
