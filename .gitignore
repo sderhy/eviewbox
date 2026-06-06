@@ -4,6 +4,7 @@ sources/classes/
 *.jar
 Thumbs.db
 .DS_Store
+DicomImages/
 
 # Legacy CVS metadata kept in the working tree but not useful in Git.
 CVS/
