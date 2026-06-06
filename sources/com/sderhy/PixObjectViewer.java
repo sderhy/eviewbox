@@ -11,6 +11,7 @@ import java.awt.event.* ;
 import tools.* ;
 
 public class PixObjectViewer extends ImageViewer implements KeyListener {
+	private static final int AUTO_SCROLL_DELAY_MS = 200 ;
 	PixObject po ;
 	PixCanvas sourceCanvas ;
 	InfoFrame infoFrame ;
@@ -143,7 +144,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			autoScrollThread = new Thread(new Runnable(){
 				public void run(){
 					while(autoScrolling){
-						try{ Thread.sleep(700); }
+						try{ Thread.sleep(AUTO_SCROLL_DELAY_MS); }
 						catch(InterruptedException interrupted){ return ;}
 						EventQueue.invokeLater(new Runnable(){
 							public void run(){
@@ -167,7 +168,11 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		}
 
 		public void keyPressed(KeyEvent e){
-			if(e.getKeyCode() == KeyEvent.VK_RIGHT) {
+			if(e.getKeyCode() == KeyEvent.VK_SPACE) {
+				toggleAutoScroll();
+				e.consume();
+			}
+			else if(e.getKeyCode() == KeyEvent.VK_RIGHT) {
 				showSibling(1);
 				e.consume();
 			}
