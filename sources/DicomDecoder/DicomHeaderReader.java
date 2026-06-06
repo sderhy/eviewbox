@@ -180,10 +180,10 @@ protected void getEssentialData(){
 		sliceThickness		= getaString (0x0018,0x0050,index);
 		spacingBetweenSlices	= getaString (0x0018,0x0088,index);
 		sliceLocation		= getaString (0x0020,0x1041,index);
-		pixelSpacing		= getaString (0x0028,0x0030,index);
 	//Sample per pixel and number of frame
 	h = getAnInt(0x0028, 0x0010, index ) ;// heigth
 	w = getAnInt(0x0028, 0x0011, index ) ; // width
+		pixelSpacing		= getaString (0x0028,0x0030,index);
 	bitsAllocated		= getAnInt(0x0028, 0x0100, index ) ;
 	bitsStored 		= getAnInt(0x0028, 0x0101, index ) ;
 	highBit 		= getAnInt(0x0028, 0x0102, index ) ;
