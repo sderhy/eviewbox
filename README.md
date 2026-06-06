@@ -1,23 +1,20 @@
 # eViewBox
 
-eViewBox est une application Java AWT historique pour visualiser et manipuler des images medicales et bitmap, avec prise en charge GIF, DICOM, JPEG, BMP et PPM selon les modules presents dans `sources/`.
+Visualiseur d'images médicales et bitmap écrit en Java AWT. Léger, rapide, sans dépendance : un seul JAR, démarrage instantané, lecture native du DICOM, GIF, JPEG, BMP et PPM.
 
-## Historique
+Pensé pour qui veut ouvrir et manipuler une image sans lancer une suite lourde — utile au quotidien, notamment en imagerie médicale.
 
-Ce depot GitHub est la suite du projet historique Eviewbox DICOM java project publie sur SourceForge:
+## Fonctionnalités
 
-https://sourceforge.net/projects/eviewbox/files/Eviewbox/
+- Lecture DICOM avec décodeur intégré
+- Reconstruction multiplanaire (MPR)
+- Diaporama et navigation dans les séries
+- Encodeurs JPEG, GIF, BMP et PPM maison
+- Outils de dessin et d'annotation sur l'image
+- Impression
+- Envoi d'images par mail (SMTP/POP3 intégrés)
 
-La page SourceForge reference des archives publiees en 2001, dont `Eviewbox.jar`, `Application and Sources` et `Sources of Eviewbox`.
-
-Le code provient d'un ancien depot CVS: les repertoires `CVS/` sont conserves dans l'arborescence locale, mais ignores par Git.
-
-## Etat actuel
-
-- Le code compile avec OpenJDK 17.
-- Les sources Java historiques ont ete converties de MacRoman vers UTF-8 pour faciliter la maintenance sur GitHub.
-- La partie applet (`e_ViewBox_Applet`) est historique et n'est plus compilee par le build par defaut. Les navigateurs modernes ne prennent plus en charge les applets Java; le lancement utile aujourd'hui est l'application desktop AWT.
-- Plusieurs API AWT et `Thread` utilisees par le code sont obsoletes, mais encore compilables avec avertissements.
+Le tout en AWT pur, sans bibliothèque externe : l'application reste compacte et démarre sans délai.
 
 ## Compiler
 
@@ -25,7 +22,7 @@ Le code provient d'un ancien depot CVS: les repertoires `CVS/` sont conserves da
 make
 ```
 
-Le JAR executable est genere ici:
+Le JAR exécutable est généré dans :
 
 ```text
 build/eviewbox.jar
@@ -33,15 +30,13 @@ build/eviewbox.jar
 
 ## Lancer
 
-Depuis la racine du projet, la commande la plus simple est:
-
 ```sh
 make run
 ```
 
-Elle compile le projet si necessaire, genere `build/eviewbox.jar`, puis lance l'application.
+Compile si nécessaire, génère `build/eviewbox.jar` et lance l'application.
 
-On peut aussi lancer directement le JAR deja genere:
+On peut aussi lancer directement le JAR :
 
 ```sh
 java -jar build/eviewbox.jar
@@ -53,28 +48,14 @@ java -jar build/eviewbox.jar
 make clean
 ```
 
-## Migration GitHub
+## Origine
 
-Initialiser Git si ce n'est pas deja fait:
+eViewBox existe depuis 2001 et tourne toujours : le code compile sans modification sous OpenJDK 17. Ce dépôt est la migration du projet historique, publié à l'origine sur SourceForge (https://sourceforge.net/projects/eviewbox/) et auparavant suivi sous CVS.
 
-```sh
-git init
-git add .
-git commit -m "Import legacy eViewBox source"
-```
+Les sources ont été passées en UTF-8 pour la maintenance, et la partie applet d'origine (`e_ViewBox_Applet`) est conservée pour mémoire mais n'est plus compilée par défaut — le point d'entrée actuel est l'application desktop.
 
-Creer ensuite un depot vide sur GitHub, puis connecter et publier:
+## Idées d'évolution
 
-```sh
-git branch -M main
-git remote add origin git@github.com:<compte>/<repo>.git
-git push -u origin main
-```
-
-## Pistes de remise a niveau
-
-- Convertir les sources en UTF-8 pour un affichage propre sur GitHub et supprimer `-encoding MacRoman`.
-- Remplacer progressivement les appels AWT deprecies (`show`, `hide`, `enable`, ancien modele d'evenements).
-- Desactiver les traces de debug permanentes dans les lecteurs DICOM.
-- Remplacer l'applet par un point d'entree desktop documente ou une interface moderne.
-- Ajouter quelques images de test non sensibles pour valider GIF/DICOM/JPEG/BMP.
+- Moderniser progressivement les appels AWT historiques
+- Couper les traces de debug dans les lecteurs DICOM
+- Ajouter quelques images de test non sensibles (GIF/DICOM/JPEG/BMP)

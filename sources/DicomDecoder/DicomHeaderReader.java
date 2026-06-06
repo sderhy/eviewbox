@@ -11,15 +11,20 @@
 * Do whatever you want with this code...
 *
 * This package is provided WITHOUT ANY WARRANTY either expressed or implied.<br>
-* Last modification: 13/09/2009;
+* Last modification: 2026 - single-pass, length-aware parser.
 *****************************************************************************/
 /**
-*	This class is for reading the DICOM file.
-*	We give the constructor the whole array of DICOM bytes
-*	We call Header the information that are before the image.
+*	This class reads the header of a DICOM file.
 *
-*	We don't try to access all the tags in the file
-*	rather, we access just the information we need.
+*	The original implementation searched the whole byte array from offset 0
+*	for every tag it needed (a brute-force pattern match repeated once per
+*	tag). This version walks the dataset ONCE, element by element, using the
+*	Value Length announced by each element to jump directly to the next one.
+*	Every element found is recorded in a map keyed by (group << 16 | element);
+*	the getters then resolve in O(1) instead of rescanning the file.
+*
+*	The public API is unchanged, so DicomReader and the rest of the
+*	application keep working without modification.
 */
 
 package DicomDecoder ;
@@ -32,8 +37,8 @@ public  class DicomHeaderReader{
 	byte[] data ;
 	int index  ;
 	private int dataLength;
-	private static  final boolean DEBUG = true ;
-	private int bytesFromTagToValue ;// depends on the VR
+	private static  final boolean DEBUG = false ;
+	private int bytesFromTagToValue ;// kept for API compatibility
 	public static final int MAX_HEADER_SIZE = 10000 ;
 	private int maxHeaderSize  ;
 	public static final String  ImplicitVRLittleEndian 	= "1.2.840.10008.1.2" 	;
@@ -86,317 +91,339 @@ public  class DicomHeaderReader{
 
 	private boolean bE                      = false ;// bigEndian
 
+	// ---- single-pass parser state ---------------------------------------
+	/** One DICOM element: where its value lives and how it is encoded. */
+	private static final class Element {
+		final int vr;        // two VR chars packed in an int, 0 if implicit
+		final int valuePos;  // offset of the value bytes in data[]
+		final int valueLen;  // value length in bytes (-1 if undefined)
+		Element(int vr, int valuePos, int valueLen){
+			this.vr = vr; this.valuePos = valuePos; this.valueLen = valueLen;
+		}
+	}
+	private final HashMap<Integer,Element> elements = new HashMap<Integer,Element>();
+	private int pixelDataPos    = -1;   // offset of pixel data value
+	private int pixelDataLength = -1;   // declared length (-1 if undefined / encapsulated)
+	private boolean explicitVR  = false;
+
+	private static final long UNDEFINED_LENGTH = 0xFFFFFFFFL;
+
+	private static int key(int group, int element){
+		return (group << 16) | (element & 0xffff);
+	}
+
 
 /**
-*	There is only one constructor , it needs an array of byte as an argument ,
-*	this array is  the Dicom file you want to read.
+*	There is only one main constructor, it needs an array of byte,
+*	this array is the DICOM file you want to read.
 */
-
 	public DicomHeaderReader ( byte [] dicomArray ){
 		this.data = dicomArray ;
-		dataLength =  data.length ;
-		index =0;
-		initHeaderSize() ;// Just read the begining of this file
-		getVR();// Look for the VR
-		getEssentialData() ;
+		dataLength = (data == null) ? 0 : data.length ;
+		index = 0;
+		initHeaderSize() ;
+		parse() ;            // walk the dataset once
+		getVR() ;            // resolve the transfer syntax label
+		getEssentialData() ; // fill the legacy fields from the map
 	}
 /**
- *	I have created a simpler constructor, in order to use some methods of DHR
+ *	Simpler constructor, kept to use some methods of DHR without parsing.
  **/
 	public DicomHeaderReader ( byte [] dicomArray , boolean minimum ){
 		this.data = dicomArray ;
-		dataLength =  data.length ;
-		index =0;
-		//getVR();// Look for the VR
+		dataLength = (data == null) ? 0 : data.length ;
+		index = 0;
 	}
-/**
-*	In order to optimize non DICOM files we define a header, so that we are
-*	not going to search the whole file .
-*	maxHeaderSize is the length of the header we are working with .
-*/
 
 	protected void initHeaderSize(){
-		maxHeaderSize = MAX_HEADER_SIZE * 3 ;// increase the speed on non Dicom Files.
+		maxHeaderSize = MAX_HEADER_SIZE * 3 ;
 		if(maxHeaderSize > dataLength) maxHeaderSize = dataLength ;
 	}
 
+// ===================================================================
+//  SINGLE-PASS PARSER
+// ===================================================================
 /**
-*	One of the main problem with Dicom file is the Value Representation or VR.
-*	Is it a big-endian or a little endian file ?
-*	There is a special tag 0x00020010 that specify it .
-*	Just use the getaString method to get this information
+*	Walk the byte array element by element. For each element we read its
+*	header (group, element, VR if explicit, value length) and then jump
+*	forward by the announced value length to reach the next element.
+*	Tolerant of truncated input: stops cleanly at the end of the array,
+*	which is what FileLister relies on (it passes a 10 kB slice).
 */
+	private void parse(){
+		if(data == null || dataLength < 8) return ;
 
+		int p = 0;
 
-protected void getVR(){
-	// first, let's look at the file to see if the VR is explicitly defined :
-	//by default it is implicit VR little endian
+		// DICOM Part-10 preamble: 128 bytes then the "DICM" magic.
+		if(dataLength >= 132 &&
+		   data[128]=='D' && data[129]=='I' && data[130]=='C' && data[131]=='M'){
+			p = 132;
+			// The File Meta group (0002,xxxx) is ALWAYS Explicit VR Little Endian.
+			boolean savedExplicit = explicitVR; boolean savedBE = bE;
+			explicitVR = true; bE = false;
+			p = walk(p, true);   // parse only the meta group
+			explicitVR = savedExplicit; bE = savedBE;
+			// Decide the encoding of the dataset from the transfer syntax.
+			deriveEncoding(rawString(key(0x0002,0x0010)));
+		} else {
+			// No preamble (legacy "detached" dataset): sniff the first element.
+			detectEncoding(p);
+		}
 
-	transfertSyntaxUID		= getaString (0x0002,0x0010, index);
-	if(!transfertSyntaxUID.equals("Unknown") ){
-		transfertSyntaxUID = transfertSyntaxUID.trim() ;
-		if(  transfertSyntaxUID .equals (ImplicitVRLittleEndian)){ VR =_ImplicitVRLittleEndian ; }
-		else if(transfertSyntaxUID.equals(ExplicitVRLittleEndian)) { VR =_ExplicitVRLittleEndian ;	}
-		else if(transfertSyntaxUID.equals(ExplicitVRBigEndian)){ VR =_ExplicitVRBigEndian ;	}
-		else if(transfertSyntaxUID.startsWith(JPEGCompression)) VR =_JPEGCompression ;
-		else if(transfertSyntaxUID.startsWith(RLECompression)) VR =_RLECompression ;
-		else VR = _notUnderstood ;
-
-		// This switch case is for debugging, it assign a readable name to the VR :
-		switch (VR){
-			case _ImplicitVRLittleEndian    : VRString = "ImplicitVRLittleEndian";break;
-			case _ExplicitVRLittleEndian    : VRString = "ExplicitVRLittleEndian";break;
-			case _ExplicitVRBigEndian 	: VRString = "ExplicitVRBigEndian";break;
-			case _JPEGCompression 		: VRString = "JPEGCompression";break;
-			case _RLECompression 		: VRString = "RLECompression" ;break;
-			case _notUnderstood 		: VRString = "not understood" ;break;
-			default                         : VRString =" Something curious happened !" ;
-		}// end of switch
-
-	}else if(transfertSyntaxUID.equals("Unknown")){ //end if !Unknown
-		transfertSyntaxUID = "Transfer syntax UID tag not found";
-		VRString = "Default VR implicit little endian";
-	}//end else
-}//endOfgetVR
+		// Main dataset.
+		walk(p, false);
+	}
 
 /**
-*	This method gets the most important data, it is part of the initialization process.
-*	Note that we are searching the file in a growing order
-*	If we don't find an essential data we reset the index to 0 in order
-*	to search again from the beginning.
+*	Core element walk. When metaOnly is true we stop as soon as we leave
+*	group 0x0002. Returns the offset where parsing stopped.
 */
-protected void getEssentialData(){
+	private int walk(int p, boolean metaOnly){
+		while(p + 8 <= dataLength){
+			int group   = u16(p);
+			int element = u16(p + 2);
+			if(metaOnly && group != 0x0002) return p;   // hand over to the dataset pass
+			p += 4;
 
-	imageType 		= getaString (0x0008,0x0008,index);
-	studyDate		= getaString (0x0008,0x0020,index);
-	modality		= getaString (0x0008,0x0060,index);
-	manufacturer	        = getaString (0x0008,0x0070,index);
-	institution		= getaString (0x0008,0x0080,index);
-	physician		= getaString (0x0008,0x0090,index);
-	patientName		= getaString (0x0010,0x0010,index);
-		patientID		= getaString (0x0010,0x0020,index);
-		patientBirthdate        = getaString(0x0010,0x0030,index);
-		sex			= getaString (0x0010,0x0040,index);
-		sliceThickness		= getaString (0x0018,0x0050,index);
-		spacingBetweenSlices	= getaString (0x0018,0x0088,index);
-		sliceLocation		= getaString (0x0020,0x1041,index);
-	//Sample per pixel and number of frame
-	h = getAnInt(0x0028, 0x0010, index ) ;// heigth
-	w = getAnInt(0x0028, 0x0011, index ) ; // width
-		pixelSpacing		= getaString (0x0028,0x0030,index);
-	bitsAllocated		= getAnInt(0x0028, 0x0100, index ) ;
-	bitsStored 		= getAnInt(0x0028, 0x0101, index ) ;
-	highBit 		= getAnInt(0x0028, 0x0102, index ) ;
-	signed 			= getAnInt(0x0028, 0x0103, index ) ;//(pixelRepresentation )
-	//-----------------debugging info:-----------------------------
+			// Item / delimitation tags (FFFE,xxxx) never carry a VR.
+			boolean isItemTag = (group == 0xFFFE);
 
-	debug( "TransfertSyntaxUID : " + transfertSyntaxUID ) ;
-	debug( "Value representation : " + VRString ) ;
-	debug( "ImageType 	" + imageType ) ;
-	debug( " h ::: 						" + h ) ;
-	debug( " w :::  					" + w ) ;
-	debug( " bitsAllocated ::: 			" + bitsAllocated ) ;
-	debug( " bitsStored ::: 			" + bitsStored ) ;
-	debug( " highBit ::: 				" + highBit ) ;
-	debug( " signed ::: 				" + signed ) ;
+			int vr = 0;
+			long len;
+			if(explicitVR && !isItemTag){
+				if(p + 2 > dataLength) break;
+				int c1 = data[p] & 0xff, c2 = data[p+1] & 0xff;
+				vr = (c1 << 8) | c2;
+				p += 2;
+				if(isLongFormVR(vr)){
+					p += 2;                 // 2 reserved bytes
+					if(p + 4 > dataLength) break;
+					len = u32(p); p += 4;
+				} else {
+					if(p + 2 > dataLength) break;
+					len = u16(p); p += 2;
+				}
+			} else {
+				if(p + 4 > dataLength) break;
+				len = u32(p); p += 4;       // implicit VR: 32-bit length
+			}
 
-	//size
-	/**
-	* First we figure a tSize or theoritical size, then we compare it to
-	* the information contained in the Dicom file.
-	* True only if there is no image compression.
-	*
-	*/
-	// Look for the Pixel Length 's tag position pos:
+			int valuePos = p;
 
-	int pos		= lookForMessagePosition( 0x7Fe0, 0x0010, index);
-	if( pos != -1 )  size  =  readMessageLength(pos+4) ;
-	// We should include the case where value length is undef 0xFFFFFFFF
-	debug( "\nValueLength for  0x7FE0,0010 tag	 	" + size ) ;
-	int HeaderSize =  pos ; // We call header all the information before the pixels
-	debug( "\nHeaderSize    : " + HeaderSize ) ;
+			// Pixel data: record and stop, no need to read pixels here.
+			if(group == 0x7Fe0 && element == 0x0010){
+				pixelDataPos = valuePos;
+				pixelDataLength = (len == UNDEFINED_LENGTH) ? -1 : (int) len;
+				elements.put(Integer.valueOf(key(group,element)),
+				             new Element(vr, valuePos, pixelDataLength));
+				return p;
+			}
 
-	int tSize =  samplesPerPixel * w*h*bitsAllocated/8 ;// theoritical Size
-
-	int figuredSize = HeaderSize + 8 + tSize ;
-	errorDetector = dataLength - figuredSize ;
-	debug( "Data Length -  Theoriticaly_figuredSize  : "+ errorDetector ) ;
-
-	if(errorDetector == 4 ){
-		size = readMessageLength(pos+8) ; // try explicit VRString
-		errorDetector = dataLength - size ;
-	}
-
-	if( errorDetector != 0){ //see what's wrong :
-
-		//1 more than one sample per pixel :
-		samplesPerPixel 	= getAnInt(0x0028, 0x0002) ;// not mandatory ?
-		if(samplesPerPixel <0 || samplesPerPixel> 3 ){
-			samplesPerPixel = 1 ;// default value
-			debug( " SamplesPerPixel ::: 	" + samplesPerPixel ) ;
+			if(len == UNDEFINED_LENGTH){
+				// Sequence (or item) of undefined length: record the tag, then
+				// skip its content up to the matching delimitation item.
+				elements.put(Integer.valueOf(key(group,element)),
+				             new Element(vr, valuePos, -1));
+				p = skipUndefinedLength(valuePos);
+			} else {
+				int l = (int) len;
+				if(l < 0 || valuePos + (long) l > dataLength){
+					// Truncated or implausible length: record what we can and stop.
+					int avail = dataLength - valuePos;
+					if(avail < 0) avail = 0;
+					elements.put(Integer.valueOf(key(group,element)),
+					             new Element(vr, valuePos, avail));
+					break;
+				}
+				elements.put(Integer.valueOf(key(group,element)),
+				             new Element(vr, valuePos, l));
+				p = valuePos + l;
+			}
 		}
-		else if (samplesPerPixel == 1) oneSamplePerPixel = true ;
-	//	else oneSamplePerPixel = false ;
-
-
-		//2 more than one Frame :
-		try{numberOfFrames = Integer.parseInt(getaString(0x0028,0x0008)) ; }
-		catch(NumberFormatException nFE){ numberOfFrames = 1 ;}
-		if (numberOfFrames > 1 ) oneFramePerFile = false ;
-		tSize = numberOfFrames * tSize * samplesPerPixel;
-		figuredSize = HeaderSize + 8 + tSize ;
-		errorDetector = dataLength - figuredSize ;
-
-		//3 other cases :
-		if (VR == _JPEGCompression)
-			debug( "_JPEGCompression , can't read that file" ) ;
-
-		if (VR == _RLECompression)
-			debug( " RLECompression , can't read that file" ) ;
-
-		debug( "Byte difference between figured sized and size tag: "	+ errorDetector
-		+"\n Frame per file  " + 	numberOfFrames
-		+"\n samplesPerPixel "  +		samplesPerPixel) ;
-		}
-
-	}// ENDOF	getEssentialData()
-
-	private  int lookForMessagePosition(int groupElement, int dataElement ){
-		return lookForMessagePosition(groupElement, dataElement, 0 );
+		return p;
 	}
-
-
-	private  int lookForMessagePosition(int groupElement, int dataElement, int  j ){
-		int LenMax = data.length -3; // -3 because we don't want to have an arrayOutOfBounds exception
-		boolean found = false ;
-		byte testByte1 = (byte) (groupElement & 0xff);
-		byte testByte2 = (byte) ((groupElement & 0xff00)>>8);
-		byte testByte3 = (byte) (dataElement & 0xff);
-		byte testByte4 = (byte) ((dataElement & 0xff00)>> 8);
-
-			debug(" Looking for :"+ Integer.toHexString(testByte1)
-					+Integer.toHexString(testByte2)+", "
-					+Integer.toHexString(testByte3)
-					+Integer.toHexString(testByte4));
-
-		for ( ;  j< LenMax || found ; j++){
-			if( ( data[j] == testByte1 ) && (data[j+1] == testByte2) && (data[j+2]== testByte3) && (data[j+3]== testByte4)){
-					found = true ;
-					return j ;
-			}//endif
-		}
-		return -1 ;
-	}//endOfmethod lookForMessagePosition
-
-
-	public int readMessageLength(int i){
-		int i0 = (int) (data[i ] &0xff);
-		int i1 =	(int) (data[i + 1 ] &0xff);
-		int i2 =	(int) (data[i + 2 ] &0xff);
-		int i3 =	(int) (data[i + 3 ] &0xff);
-		return i3<<24| i2<<16 |i1<< 8|i0 ;
-	}
-
-
-	public int readVRMessageLength(int tagPos){
-		if(VR == _ImplicitVRLittleEndian ){
-			bytesFromTagToValue = 8 ;
-			return readInt32(tagPos + 4 ) ;
-		}
-		// case  explicit VR with of OB OW SQ or UN
-		String VRTypeOf =
-			new String(new byte[]{data[tagPos+4],data[tagPos+5]});
-		debug ("VR type of : "+ VRTypeOf );
-		if( VRTypeOf.equals("OB")|
-				VRTypeOf.equals("OW")|
-				VRTypeOf.equals("SQ")|
-				VRTypeOf.equals("UN")){
-			bytesFromTagToValue = 12;
-
-			return readInt32(tagPos + 8 );
-		}
-		// case  explicit VR with value other than OB OW SQ or UN
-		else{
-			bytesFromTagToValue = 8 ;
-			return	readInt16(tagPos + 6 ) ;
-		}
-	}
-
-	private int readInt32(int i) {
-		//= return readMessageLength(i);//same method !
-		int i0 = 	(int) (data[i ] &0xff);
-		int i1 =	(int) (data[i + 1 ] &0xff);
-		int i2 =	(int) (data[i + 2 ] &0xff);
-		int i3 =	(int) (data[i + 3 ] &0xff);
-		return i3<<24| i2<<16 |i1<< 8|i0 ;
-
-	}
-
-	private int readInt16( int i ){
-
-		int  i1 = data[i+1]&0xff ;
-		int  i0 = data[i]&0xff ;
-		int anInt =  i1<<8|i0 ;
-	//case BE swap bytes :
-		if (anInt < -1){ anInt= (int)(data[i]*256)&0xff + data[i+1]&0xff ;
-			debug("Byte swapped at readInt16 :" + anInt) ;
-		}
-		return anInt ;
-	}
-
-	private void skip (int length){
-		index += length;
-	}
-
-	/**
-	*	This method get an integer if you give it the tags.
-	*/
-	public int  getAnInt(int groupElement, int dataElement){
-		return getAnInt( groupElement, dataElement, 0);
-	}//endofMethod
-
-	private int  getAnInt(int groupElement, int dataElement, int j){
-		int pos = lookForMessagePosition( groupElement, dataElement, j);
-		if(pos < maxHeaderSize && pos != -1 ){
-			index = pos ;
-			if (readVRMessageLength(pos) == 2 )
-					return readInt16( pos + bytesFromTagToValue );
-			else if(readVRMessageLength(pos) == 4 )
-					return readInt32(pos + bytesFromTagToValue );
-			else return -1; // case undef FFFF for later!
-		}//end if
-		else return -1 ;
-	}//endofMethod
-
 
 /**
-*	Here are some methods to retrieve the major  datas.
-*	Notice that  you should allways check wether  the width , the height of the image , and the bitsAllocated are
-* 	consistent with the size of the file .
+*	Skip the content of an undefined-length sequence. Items inside are
+*	(FFFE,E000) with their own length (possibly undefined -> recurse); the
+*	sequence ends at (FFFE,E0DD). Returns the offset just past the end.
 */
-	public int getSize()	{ return dataLength;}
-	public int getNumberOfFrames(){ return numberOfFrames ;}
-	public int getSamplesPerPixels() { return samplesPerPixel ;}
-	public int getPixelDataSize(){
-		if (errorDetector == 0 )return size ;
-		else return -1 ;
+	private int skipUndefinedLength(int p){
+		while(p + 8 <= dataLength){
+			int group   = u16(p);
+			int element = u16(p + 2);
+			long len    = u32(p + 4);
+			p += 8;
+			if(group == 0xFFFE && element == 0xE0DD) return p;   // sequence end
+			if(len == UNDEFINED_LENGTH){
+				p = skipUndefinedLength(p);                       // nested item
+			} else {
+				long np = p + len;
+				if(np > dataLength || np < p) return dataLength;
+				p = (int) np;
+			}
+		}
+		return dataLength;
 	}
 
+	private static boolean isLongFormVR(int vr){
+		// VRs encoded as VR(2) + reserved(2) + length(4).
+		switch(vr){
+			case ('O'<<8)|'B': // OB
+			case ('O'<<8)|'W': // OW
+			case ('O'<<8)|'F': // OF
+			case ('O'<<8)|'D': // OD
+			case ('O'<<8)|'L': // OL
+			case ('S'<<8)|'Q': // SQ
+			case ('U'<<8)|'T': // UT
+			case ('U'<<8)|'N': // UN
+			case ('U'<<8)|'C': // UC
+			case ('U'<<8)|'R': // UR
+				return true;
+			default:
+				return false;
+		}
+	}
 
+/**	Guess the encoding of a preamble-less dataset by sniffing the 1st tag. */
+	private void detectEncoding(int p){
+		bE = false;                       // legacy default: little endian
+		explicitVR = false;
+		if(p + 6 <= dataLength){
+			int c1 = data[p+4] & 0xff, c2 = data[p+5] & 0xff;
+			// Two upper-case ASCII letters at the VR slot => explicit VR.
+			if(c1 >= 'A' && c1 <= 'Z' && c2 >= 'A' && c2 <= 'Z') explicitVR = true;
+		}
+	}
 
-/**	The  height   : */
-	public int  getRows()	{return h ;}
-/**	The width 		:*/
-	public int  getColumns(){ return w;}
-/* *The bits Allocated  per pixel of image */
-	public int  getBitAllocated(){return bitsAllocated;}
-/** the bits stored per pixel of image   */
-	public int  getBitStored(){return bitsStored;}
-/** Other values : */
-	public int  getHighBit(){return	highBit;}
-	public int  getSamplesPerPixel(){return	samplesPerPixel;}
-	public int  getPixelRepresentation(){return	signed;}
+/**	Set explicitVR / bE from the transfer syntax UID of the meta group. */
+	private void deriveEncoding(String uid){
+		if(uid == null){ explicitVR = false; bE = false; return; }
+		uid = uid.trim();
+		if(uid.equals(ExplicitVRLittleEndian)){ explicitVR = true;  bE = false; }
+		else if(uid.equals(ExplicitVRBigEndian)){ explicitVR = true;  bE = true;  }
+		else if(uid.startsWith(JPEGCompression)){ explicitVR = true;  bE = false; }
+		else if(uid.startsWith(RLECompression)) { explicitVR = true;  bE = false; }
+		else { explicitVR = false; bE = false; } // implicit VR little endian
+	}
 
+/**	Resolve the transfer syntax into the legacy VR enum + label. */
+	protected void getVR(){
+		transfertSyntaxUID = rawString(key(0x0002,0x0010));
+		if(transfertSyntaxUID != null && !transfertSyntaxUID.equals("Unknown")){
+			transfertSyntaxUID = transfertSyntaxUID.trim();
+			if(transfertSyntaxUID.equals(ImplicitVRLittleEndian)) VR = _ImplicitVRLittleEndian;
+			else if(transfertSyntaxUID.equals(ExplicitVRLittleEndian)) VR = _ExplicitVRLittleEndian;
+			else if(transfertSyntaxUID.equals(ExplicitVRBigEndian)) VR = _ExplicitVRBigEndian;
+			else if(transfertSyntaxUID.startsWith(JPEGCompression)) VR = _JPEGCompression;
+			else if(transfertSyntaxUID.startsWith(RLECompression)) VR = _RLECompression;
+			else VR = _notUnderstood;
+
+			switch (VR){
+				case _ImplicitVRLittleEndian : VRString = "ImplicitVRLittleEndian"; break;
+				case _ExplicitVRLittleEndian : VRString = "ExplicitVRLittleEndian"; break;
+				case _ExplicitVRBigEndian    : VRString = "ExplicitVRBigEndian"; break;
+				case _JPEGCompression        : VRString = "JPEGCompression"; break;
+				case _RLECompression         : VRString = "RLECompression"; break;
+				case _notUnderstood          : VRString = "not understood"; break;
+				default                      : VRString = "Something curious happened !";
+			}
+		} else {
+			transfertSyntaxUID = "Transfer syntax UID tag not found";
+			VRString = explicitVR ? "Explicit VR little endian (sniffed)"
+			                      : "Default VR implicit little endian";
+			if(VR == _ImplicitVRLittleEndian && explicitVR) VR = _ExplicitVRLittleEndian;
+		}
+	}
+
+/**	Fill the legacy scalar/string fields from the parsed map. */
+	protected void getEssentialData(){
+		imageType            = getaString(0x0008,0x0008);
+		studyDate            = getaString(0x0008,0x0020);
+		modality             = getaString(0x0008,0x0060);
+		manufacturer         = getaString(0x0008,0x0070);
+		institution          = getaString(0x0008,0x0080);
+		physician            = getaString(0x0008,0x0090);
+		patientName          = getaString(0x0010,0x0010);
+		patientID            = getaString(0x0010,0x0020);
+		patientBirthdate     = getaString(0x0010,0x0030);
+		sex                  = getaString(0x0010,0x0040);
+		sliceThickness       = getaString(0x0018,0x0050);
+		spacingBetweenSlices = getaString(0x0018,0x0088);
+		sliceLocation        = getaString(0x0020,0x1041);
+		pixelSpacing         = getaString(0x0028,0x0030);
+
+		h = getAnInt(0x0028, 0x0010);
+		w = getAnInt(0x0028, 0x0011);
+		bitsAllocated = getAnInt(0x0028, 0x0100);
+		bitsStored    = getAnInt(0x0028, 0x0101);
+		highBit       = getAnInt(0x0028, 0x0102);
+		signed        = getAnInt(0x0028, 0x0103);
+
+		samplesPerPixel = getAnInt(0x0028, 0x0002);
+		if(samplesPerPixel < 0 || samplesPerPixel > 3) samplesPerPixel = 1;
+		oneSamplePerPixel = (samplesPerPixel == 1);
+
+		try { numberOfFrames = Integer.parseInt(getaString(0x0028,0x0008).trim()); }
+		catch(NumberFormatException nfe){ numberOfFrames = 1; }
+		if(numberOfFrames < 1) numberOfFrames = 1;
+		oneFramePerFile = (numberOfFrames == 1);
+
+		size = (pixelDataLength >= 0) ? pixelDataLength : getFileDataLength();
+		n = (bitsAllocated > 0) ? (bitsAllocated / 8) : -1 ;
+
+		// Consistency check (kept for getPixelDataSize()).
+		if(w > 0 && h > 0 && bitsAllocated > 0 && pixelDataLength > 0){
+			int ba = (bitsAllocated % 8 == 0) ? bitsAllocated/8 : (bitsAllocated+8)/8;
+			int tSize = samplesPerPixel * w * h * ba * numberOfFrames;
+			errorDetector = pixelDataLength - tSize;
+		} else {
+			errorDetector = (pixelDataPos >= 0) ? 0 : -1;
+		}
+
+		debug("TransfertSyntaxUID : " + transfertSyntaxUID);
+		debug("Value representation : " + VRString);
+		debug("ImageType : " + imageType);
+		debug("h=" + h + " w=" + w + " bitsAllocated=" + bitsAllocated
+		      + " bitsStored=" + bitsStored + " highBit=" + highBit + " signed=" + signed);
+	}
+
+// ===================================================================
+//  LOW-LEVEL READS (endian aware)
+// ===================================================================
+	private int u16(int i){
+		int a = data[i] & 0xff, b = data[i+1] & 0xff;
+		return bE ? ((a << 8) | b) : ((b << 8) | a);
+	}
+	private long u32(int i){
+		long a = data[i] & 0xff, b = data[i+1] & 0xff,
+		     c = data[i+2] & 0xff, d = data[i+3] & 0xff;
+		return bE ? ((a<<24)|(b<<16)|(c<<8)|d) : ((d<<24)|(c<<16)|(b<<8)|a);
+	}
+
+	/** Raw value of an element as a String (no "Unknown" fallback handling). */
+	private String rawString(int k){
+		Element e = elements.get(Integer.valueOf(k));
+		if(e == null) return "Unknown";
+		int len = e.valueLen;
+		if(len <= 0) return "Unknown";
+		if(e.valuePos + len > dataLength) len = dataLength - e.valuePos;
+		if(len <= 0) return "Unknown";
+		if(len > 1024) len = 1024;                 // strings in the header are short
+		StringBuffer sb = new StringBuffer(len);
+		for(int i = 0; i < len; i++) sb.append((char)(data[e.valuePos + i] & 0xff));
+		int end = sb.length();
+		while(end > 0){
+			char c = sb.charAt(end - 1);
+			if(c == '\0' || c == ' ') end--; else break;
+		}
+		return sb.substring(0, end);
+	}
+
+// ===================================================================
+//  PUBLIC ACCESSORS  (unchanged signatures)
+// ===================================================================
 	public String  getPatientName(){ 	return patientName; 		}
 	public String  getPatientBirthdate(){ return patientBirthdate; 	}
 	public String  getManufacturer(){ 	return manufacturer ;		}
@@ -414,30 +441,16 @@ protected void getEssentialData(){
 		public double getPixelSpacingRowValue(){ return parseDecimal(pixelSpacing, 0); }
 		public double getPixelSpacingColumnValue(){ return parseDecimal(pixelSpacing, 1); }
 
-/** Retrieves a String when you knows the tags  */
+/** Retrieves a String when you know the tags. */
 	public String  getaString(int groupNumber, int elementNumber){
 		return getaString( groupNumber, elementNumber, 0) ;
 	}
 
-		private String  getaString(int groupNumber, int elementNumber, int j ){
-		int pos = lookForMessagePosition(groupNumber,elementNumber,j);
-		//debug( "Position  = " + pos+ " of " + tools.Tools.toHex(groupNumber ) +" "+ tools.Tools.toHex(elementNumber) );
-
-		if(pos < MAX_HEADER_SIZE && pos != -1 ){
-			int length = readMessageLength(pos+4);
-			if (length >256)length = readInt16( pos + 6 );
-			if (length > 64 || length < 0 ) length = 64 ;
-			if (length > (dataLength - pos-8)) length = dataLength -pos -9 ;
-			index = pos  ;
-			pos += 8;
-			char[] result = new char[length ];
-
-			for (int i = 0; i < length ;i++)
-				result[i] = (char)data[pos++];
-			return new String( result );
-		}
-			else return "Unknown" ;
-		}
+	private String  getaString(int groupNumber, int elementNumber, int j ){
+		// j is obsolete (was the scan start offset); kept for source compatibility.
+		String s = rawString(key(groupNumber, elementNumber));
+		return (s == null) ? "Unknown" : s;
+	}
 
 		private double parseDecimal(String value, int fieldIndex){
 			if(value == null) return -1 ;
@@ -457,88 +470,67 @@ protected void getEssentialData(){
 			return -1 ;
 		}
 
-
-/**
-*	This is a dangerous method because it can lead you to an array of bounds exception !
-* 	check wether it is consistent with the file data length , the width, height and bit allocated of the image
-*	getFileDataLength return the length of the pixel data.
-*/
-
+/**	Length declared by the pixel-data element (-1 if undefined/compressed). */
         public int  getFileDataLength(){
-		int pos = lookForMessagePosition( 0x7Fe0, 0x0010);
-		if ( pos != -1) return  readMessageLength(pos+4) ;
-		else return -1 ;
+		Element e = elements.get(Integer.valueOf(key(0x7Fe0,0x0010)));
+		return (e == null) ? -1 : e.valueLen ;
 	}
 
 /**
-*	<br>
-* This method return the pixels of the Dicom image ( yes  !)  provided it is not compressed and this is a known
-* Dicom format, else it return null (please check for a null condition  or an index array out of bounds exception).
-*	<br>
+*	Returns the raw pixels of the DICOM image, provided it is uncompressed
+*	and a known format. Throws IOException otherwise.
 */
-
 	public byte[] getPixels() throws IOException{
-
-
-		if (VR == _JPEGCompression )
+		if (VR == _JPEGCompression)
 			throw new IOException("DICOM JPEG compression not yet supported ") ;
+		if (VR == _RLECompression)
+			throw new IOException("DICOM RLE compression not yet supported ") ;
 
-		int w = getRows() ;
-			if ( w ==  -1){
-				throw new IOException("Format not recognized") ;
-				 //return null ;
-			}
-		int h = getColumns();
-			if( h == -1) throw new IOException("Format not recognized") ;
+		int rows = getRows() ;
+		if (rows == -1) throw new IOException("Format not recognized") ;
+		int cols = getColumns();
+		if (cols == -1) throw new IOException("Format not recognized") ;
 
 		int ba = getBitAllocated();
-		if( ba%8 == 0) { ba = ba/8 ;}
-		else ba = (ba+8)/8 ;
-		int fileLength = w * h * ba ;
-		int offset = dataLength - fileLength ; ///!!! bizarre this is for elscint !!!
-		// should be this one : //int pos = lookForMessagePosition( 0x7Fe0, 0x0010) + 8;
-		int pos = lookForMessagePosition( 0x7Fe0, 0x0010) + 8;
-//		if(VR == _ExplicitVRLittleEndian || VR == _ExplicitVRBigEndian )
-//		offset += 4 ;
-		byte[]  pixData = new byte[ fileLength ];
-	//	java.lang.System.arraycopy (data, offset, pixData,0, fileLength );
-		java.lang.System.arraycopy (data, pos, pixData,0, fileLength );
+		ba = (ba % 8 == 0) ? ba/8 : (ba+8)/8 ;
+		int fileLength = rows * cols * ba ;
 
+		int pos = pixelDataPos ;
+		if(pos < 0) throw new IOException("Pixel data not found") ;
+		if(pixelDataLength > 0 && pixelDataLength < fileLength) fileLength = pixelDataLength ;
+		if(pos + fileLength > dataLength) fileLength = dataLength - pos ;
+		if(fileLength <= 0) throw new IOException("Format not recognized") ;
+
+		byte[] pixData = new byte[ fileLength ];
+		System.arraycopy (data, pos, pixData, 0, fileLength );
 		return pixData ;
-
 	}
 
 	public byte[] getPixels(int number) throws IOException{
-
 		if( number > numberOfFrames ) throw new IOException( "Doesn't have such a frame ! ") ;
-		if (VR == _JPEGCompression )
+		if (VR == _JPEGCompression)
 			throw new IOException("DICOM JPEG compression not yet supported ") ;
+		if (VR == _RLECompression)
+			throw new IOException("DICOM RLE compression not yet supported ") ;
 
-		int w = getRows() ;
-			if ( w ==  -1){
-				throw new IOException("Format not recognized") ;
-				 //return null ;
-			}
-		int h = getColumns();
-			if( h == -1) throw new IOException("Format not recognized") ;
+		int rows = getRows() ;
+		if (rows == -1) throw new IOException("Format not recognized") ;
+		int cols = getColumns();
+		if (cols == -1) throw new IOException("Format not recognized") ;
 
 		int ba = getBitAllocated();
-			if( ba%8 == 0) { ba = ba/8 ;}
-				else ba = (ba+8)/8 ;
-		int fileLength = w * h * ba ;
-		int offset = dataLength - (fileLength * number); ///!!! bizarre this is for elscint !!!
-		// should be this one : //
-		int pos = lookForMessagePosition( 0x7Fe0, 0x0010) + 8;
-		byte[]  pixData = new byte[ fileLength ];
-		//	java.lang.System.arraycopy (data, offset, pixData,0, fileLength );
-			java.lang.System.arraycopy (data, pos, pixData,0, fileLength );
+		ba = (ba % 8 == 0) ? ba/8 : (ba+8)/8 ;
+		int frameLength = rows * cols * ba ;
 
+		int pos = pixelDataPos + (number - 1) * frameLength ;
+		if(pos < 0 || pos + frameLength > dataLength) throw new IOException("Frame out of range") ;
+
+		byte[] pixData = new byte[ frameLength ];
+		System.arraycopy (data, pos, pixData, 0, frameLength );
 		return pixData ;
-
 	}
 
 	public String[] getInfo(){
-
 			String [] info = new String[20];
 		info[0]  = "Patient 's name              : " + getPatientName();
 		info[1]  = "Patient 's ID                : " + getPatientID();
@@ -560,15 +552,9 @@ protected void getEssentialData(){
 			info[17] = "Spacing between slices       : " + getSpacingBetweenSlices();
 			info[18] = "Slice location               : " + getSliceLocation();
 			info[19] = "Pixel spacing                : " + getPixelSpacing();
-
 	return info ;
 	}
-/**
-*	From Leon Bailey and Michael Pasternak :
-*	Added the getMedicalInfos method, which returns a
-*	Hashtable of DICOM header information.  It is sent
-*	later with the uploaded images.
-*/
+
 	public Hashtable getMedicalInfos() {
 		Hashtable table = new Hashtable(8);
 		table.put("patient.name",getPatientName());
@@ -586,11 +572,79 @@ protected void getEssentialData(){
 			return table;
 		}
 
-	protected  final static String author(){
-			return ("Serge Derhy") ;
+/**	This method gets an integer when you give it the tags. */
+	public int  getAnInt(int groupElement, int dataElement){
+		return getAnInt( groupElement, dataElement, 0);
 	}
 
+	private int  getAnInt(int groupElement, int dataElement, int j){
+		Element e = elements.get(Integer.valueOf(key(groupElement, dataElement)));
+		if(e == null || e.valueLen <= 0) return -1 ;
+		if(e.valuePos + e.valueLen > dataLength) return -1 ;
+		if(e.valueLen == 2) return u16(e.valuePos);
+		if(e.valueLen == 4) return (int) u32(e.valuePos);
+		// e.g. an IS (Integer String) value:
+		String s = rawString(key(groupElement, dataElement));
+		try { return Integer.parseInt(s.trim()); }
+		catch(NumberFormatException nfe){ return -1; }
+	}
+
+// --- legacy helpers kept for API compatibility (little-endian) ---------
+	public int readMessageLength(int i){
+		int i0 = data[i]   & 0xff;
+		int i1 = data[i+1] & 0xff;
+		int i2 = data[i+2] & 0xff;
+		int i3 = data[i+3] & 0xff;
+		return i3<<24 | i2<<16 | i1<<8 | i0 ;
+	}
+
+	public int readVRMessageLength(int tagPos){
+		if(!explicitVR){
+			bytesFromTagToValue = 8 ;
+			return readMessageLength(tagPos + 4) ;
+		}
+		String VRTypeOf = new String(new byte[]{data[tagPos+4], data[tagPos+5]});
+		if(VRTypeOf.equals("OB") || VRTypeOf.equals("OW")
+		   || VRTypeOf.equals("SQ") || VRTypeOf.equals("UN")){
+			bytesFromTagToValue = 12;
+			return readMessageLength(tagPos + 8);
+		} else {
+			bytesFromTagToValue = 8 ;
+			int a = data[tagPos+6] & 0xff, b = data[tagPos+7] & 0xff;
+			return (b<<8) | a ;
+		}
+	}
+
+	private void skip (int length){ index += length; }
+
+/**
+*	Major data accessors. Always check that width, height and bitsAllocated
+*	are consistent with the file size.
+*/
+	public int getSize()	{ return dataLength;}
+	public int getNumberOfFrames(){ return numberOfFrames ;}
+	public int getSamplesPerPixels() { return samplesPerPixel ;}
+	public int getPixelDataSize(){
+		if (errorDetector == 0 ) return size ;
+		else return -1 ;
+	}
+
+/**	The height : */
+	public int  getRows()	{return h ;}
+/**	The width : */
+	public int  getColumns(){ return w;}
+/**	The bits allocated per pixel of image */
+	public int  getBitAllocated(){return bitsAllocated;}
+/**	The bits stored per pixel of image */
+	public int  getBitStored(){return bitsStored;}
+/**	Other values : */
+	public int  getHighBit(){return	highBit;}
+	public int  getSamplesPerPixel(){return	samplesPerPixel;}
+	public int  getPixelRepresentation(){return	signed;}
+
+	protected  final static String author(){ return ("Serge Derhy") ; }
+
 	private void  debug(String message){
-		if (DEBUG )System.out.println(message);
+		if (DEBUG) System.out.println(message);
 	}
 }//endOfClass
