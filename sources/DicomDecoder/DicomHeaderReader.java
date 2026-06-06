@@ -775,7 +775,7 @@ public  class DicomHeaderReader{
 	}
 
 	public Hashtable getMedicalInfos() {
-		Hashtable table = new Hashtable(8);
+		Hashtable<String,String> table = new Hashtable<String,String>(8);
 		table.put("patient.name",getPatientName());
 		table.put("patient.id",getPatientID());
 		table.put("patient.birthdate",getPatientBirthdate());
