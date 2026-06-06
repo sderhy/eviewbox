@@ -108,6 +108,21 @@ public  class DicomHeaderReader{
 
 	private static final long UNDEFINED_LENGTH = 0xFFFFFFFFL;
 
+	// Lazily-built tag-name dictionary (group+element hex -> name), shared.
+	private static Map<String,String> DICT = null;
+	private static synchronized Map<String,String> dict(){
+		if(DICT == null){
+			DICT = new HashMap<String,String>();
+			Map raw = new DicomDictionary().getDictionary();
+			java.util.Iterator it = raw.keySet().iterator();
+			while(it.hasNext()){
+				String k = (String) it.next();
+				DICT.put(k.toUpperCase(), (String) raw.get(k));
+			}
+		}
+		return DICT;
+	}
+
 	private static int key(int group, int element){
 		return (group << 16) | (element & 0xffff);
 	}
@@ -211,13 +226,21 @@ public  class DicomHeaderReader{
 
 			int valuePos = p;
 
-			// Pixel data: record and stop, no need to read pixels here.
+			// Pixel data: record it, then skip its value so any element that
+			// follows the image is still captured (full-header parse).
 			if(group == 0x7Fe0 && element == 0x0010){
 				pixelDataPos = valuePos;
 				pixelDataLength = (len == UNDEFINED_LENGTH) ? -1 : (int) len;
 				elements.put(Integer.valueOf(key(group,element)),
 				             new Element(vr, valuePos, pixelDataLength));
-				return p;
+				if(len == UNDEFINED_LENGTH){
+					p = skipUndefinedLength(valuePos);   // encapsulated fragments
+				} else {
+					long np = valuePos + len;
+					if(np > dataLength || np < valuePos) break;
+					p = (int) np;
+				}
+				continue;
 			}
 
 			if(len == UNDEFINED_LENGTH){
@@ -553,6 +576,142 @@ public  class DicomHeaderReader{
 			info[18] = "Slice location               : " + getSliceLocation();
 			info[19] = "Pixel spacing                : " + getPixelSpacing();
 	return info ;
+	}
+
+// ===================================================================
+//  FULL-HEADER ACCESS  (every element parsed, not just the curated set)
+// ===================================================================
+/** Number of distinct elements parsed in the whole file. */
+	public int getElementCount(){ return elements.size(); }
+
+/** True if the element is present in the file. */
+	public boolean hasTag(int group, int element){
+		return elements.containsKey(Integer.valueOf(key(group, element)));
+	}
+
+/** Human-readable name from the DICOM dictionary, or "" if unknown. */
+	public String getTagName(int group, int element){
+		String name = dict().get(hex8(group, element));
+		if(name == null){
+			// Repeating groups (50xx, 60xx, 7Fxx ...) are stored with an "XX" joker.
+			String hi = Integer.toHexString((group >> 8) & 0xff).toUpperCase();
+			while(hi.length() < 2) hi = "0" + hi;
+			name = dict().get(hi + "XX" + hex4(element));
+		}
+		return (name == null) ? "" : name.trim();
+	}
+
+/** Value of any element, formatted as text according to its VR. */
+	public String getElementValue(int group, int element){
+		Element e = elements.get(Integer.valueOf(key(group, element)));
+		return (e == null) ? "" : formatValue(e);
+	}
+
+/** Sorted list of every parsed tag, as "GGGG,EEEE" strings. */
+	public String[] getTagList(){
+		Integer[] keys = elements.keySet().toArray(new Integer[0]);
+		java.util.Arrays.sort(keys);
+		String[] out = new String[keys.length];
+		for(int i = 0; i < keys.length; i++){
+			int k = keys[i].intValue();
+			out[i] = tag(k >>> 16, k & 0xffff);
+		}
+		return out;
+	}
+
+/**
+*	Full header dump: one line per element,
+*	"GGGG,EEEE  [VR]  Name                         value".
+*/
+	public String[] getAllElements(){
+		Integer[] keys = elements.keySet().toArray(new Integer[0]);
+		java.util.Arrays.sort(keys);
+		String[] out = new String[keys.length];
+		for(int i = 0; i < keys.length; i++){
+			int k = keys[i].intValue();
+			int g = k >>> 16, e = k & 0xffff;
+			Element el = elements.get(keys[i]);
+			String name = getTagName(g, e);
+			if(name.length() == 0) name = "?";
+			String vr = (el.vr != 0)
+				? ("" + (char)((el.vr >> 8) & 0xff) + (char)(el.vr & 0xff))
+				: "  ";
+			out[i] = tag(g, e) + "  [" + vr + "]  " + pad(name, 32) + " " + formatValue(el);
+		}
+		return out;
+	}
+
+// --- formatting helpers --------------------------------------------------
+	private static String hex4(int v){
+		String s = Integer.toHexString(v & 0xffff).toUpperCase();
+		while(s.length() < 4) s = "0" + s;
+		return s;
+	}
+	private static String hex8(int g, int e){ return hex4(g) + hex4(e); }
+	private static String tag(int g, int e){ return hex4(g) + "," + hex4(e); }
+	private static String pad(String s, int n){
+		StringBuffer b = new StringBuffer(s);
+		while(b.length() < n) b.append(' ');
+		return b.toString();
+	}
+
+	private long readU64(int i){
+		long v = 0;
+		if(bE) for(int k = 0; k < 8; k++) v = (v << 8) | (data[i+k] & 0xff);
+		else   for(int k = 7; k >= 0; k--) v = (v << 8) | (data[i+k] & 0xff);
+		return v;
+	}
+
+	private String text(int pos, int len){
+		if(len > 256) len = 256;
+		StringBuffer b = new StringBuffer(len);
+		for(int i = 0; i < len && pos + i < dataLength; i++){
+			int c = data[pos+i] & 0xff;
+			b.append(((c >= 32 && c < 127) || c == 9) ? (char)c : '.');
+		}
+		int end = b.length();
+		while(end > 0 && (b.charAt(end-1) == ' ' || b.charAt(end-1) == '.')) end--;
+		return b.substring(0, end);
+	}
+
+	private boolean looksPrintable(int pos, int len){
+		int n = Math.min(len, 16);
+		for(int i = 0; i < n && pos + i < dataLength; i++){
+			int c = data[pos+i] & 0xff;
+			if(!((c >= 32 && c < 127) || c == 0 || c == 9 || c == 10 || c == 13)) return false;
+		}
+		return true;
+	}
+
+	private static boolean isBinaryVR(int vr){
+		switch(vr){
+			case ('O'<<8)|'B': case ('O'<<8)|'W': case ('O'<<8)|'F':
+			case ('O'<<8)|'D': case ('O'<<8)|'L': case ('U'<<8)|'N':
+			case ('S'<<8)|'Q':
+				return true;
+			default: return false;
+		}
+	}
+
+	private String formatValue(Element e){
+		if(e.valueLen < 0) return "(sequence / undefined length)";
+		if(e.valueLen == 0) return "";
+		if(e.valuePos + e.valueLen > dataLength) return "<" + e.valueLen + " bytes, truncated>";
+		switch(e.vr){
+			case ('U'<<8)|'S': return Integer.toString(u16(e.valuePos));
+			case ('S'<<8)|'S': return Integer.toString((short) u16(e.valuePos));
+			case ('U'<<8)|'L': return Long.toString(u32(e.valuePos) & 0xffffffffL);
+			case ('S'<<8)|'L': return Integer.toString((int) u32(e.valuePos));
+			case ('F'<<8)|'L': return Float.toString(Float.intBitsToFloat((int) u32(e.valuePos)));
+			case ('F'<<8)|'D': return Double.toString(Double.longBitsToDouble(readU64(e.valuePos)));
+			case ('A'<<8)|'T': return tag(u16(e.valuePos), u16(e.valuePos + 2));
+		}
+		if(isBinaryVR(e.vr)) return "<" + e.valueLen + " bytes>";
+		// String VRs, or implicit VR: render as text when it looks printable.
+		if(e.vr != 0 || looksPrintable(e.valuePos, e.valueLen)) return text(e.valuePos, e.valueLen);
+		if(e.valueLen == 2) return Integer.toString(u16(e.valuePos));
+		if(e.valueLen == 4) return Long.toString(u32(e.valuePos) & 0xffffffffL);
+		return "<" + e.valueLen + " bytes>";
 	}
 
 	public Hashtable getMedicalInfos() {

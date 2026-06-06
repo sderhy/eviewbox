@@ -1385,7 +1385,7 @@ class DicomDictionary {
 	,"00280100=BitsAllocated "
 	,"00280101=BitsStored "
 	,"00280102=HighBit "
-	,"00280103=PixelRepresentation0 = Unsigned "
+	,"00280103=PixelRepresentation "
 	,"00280104=SmallestValidPixelValue "
 	,"00280105=LargestValidPixelValue "
 	,"00280106=SmallestImagePixelValue "
