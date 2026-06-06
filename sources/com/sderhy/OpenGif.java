@@ -70,7 +70,7 @@ public class OpenGif  {
 		mc.vimages.addElement(po) ;
 		TF.setText(url.toString()) ;
 
-			canvas.repaint() ;
+			canvas.refresh() ;
 			return true ;
 			}
 
@@ -126,7 +126,7 @@ public class OpenGif  {
 		PixObject po = new PixObject(url, image,  canvas, false , null  ) ;
 		mc.vimages.addElement(po) ;
 		TF.setText(url.toString()) ;
-		canvas.repaint() ;
+		canvas.refresh() ;
 		return true ;
 		}//end of openGIF.fromFile()
 }//end of class

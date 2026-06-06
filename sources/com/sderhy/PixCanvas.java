@@ -56,7 +56,44 @@ import java.io.*;
 
 
     public Dimension getPreferredSize() {
-    	return frame.getSize();}
+	return getCanvasSize();}
+
+	public Dimension getMinimumSize() {
+		return getCanvasSize();
+	}
+
+	private Dimension getCanvasSize(){
+		int canvasWidth = getSize().width;
+		if(canvasWidth <= 0) canvasWidth = width;
+		if(frame != null && frame.getSize().width > canvasWidth) canvasWidth = frame.getSize().width;
+		if(canvasWidth < stampW) canvasWidth = stampW;
+
+		int columns = getColumnsForWidth(canvasWidth);
+		int rows = 1;
+		if(vimages != null && !vimages.isEmpty())
+			rows = ((vimages.size() - 1) / columns) + 1;
+
+		int canvasHeight = rows * stampH;
+		if(frame != null && frame.getSize().height > canvasHeight) canvasHeight = frame.getSize().height;
+		if(canvasHeight < height) canvasHeight = height;
+		return new Dimension(canvasWidth, canvasHeight);
+	}
+
+	private int getColumnsForWidth(int canvasWidth){
+		if(canvasWidth < stampW) return 1;
+		return Math.max(1, canvasWidth / stampW);
+	}
+
+	public void refresh(){
+		Dimension size = getCanvasSize();
+		if(!size.equals(getSize())){
+			setSize(size);
+			invalidate();
+			Container parent = getParent();
+			if(parent != null) parent.doLayout();
+		}
+		repaint();
+	}
 
 	public void changeSize(){
 		//eraseRect();
@@ -82,8 +119,8 @@ import java.io.*;
 		fwic.stampH = stampH ;
 		fwic.stampW = stampW ;
 
-		repaintAllPixObjects() ;
-		repaint();
+			repaintAllPixObjects() ;
+			refresh();
 
 
 	 }// end of changeSize
@@ -110,6 +147,8 @@ import java.io.*;
 * Override paint
 */
     public void paint(Graphics g) {
+		Dimension size = getCanvasSize();
+		if(!size.equals(getSize())) setSize(size);
    		 for(int i = 0; i < vimages.size(); i++) {
     		PixObject po = (PixObject)vimages.elementAt(i);
     		paintStamp(g,i, po) ;
@@ -118,15 +157,11 @@ import java.io.*;
     }
 
     public void paintStamp( Graphics g , int number, PixObject po){
-			int numRow = this.getSize().width / stampW ;
-			int numCol = this.getSize().height/ stampH ;
+			int numRow = getColumnsForWidth(this.getSize().width) ;
 			int xPos  = (number % numRow)* stampW ;
 			int yPos  =  (number/numRow)/*%numCol */;//Modification au 140698
 			yPos *= stampH ;
 
-			if(  (yPos+stampH) > getSize().height) {
-				setSize(this.getSize().width , yPos+stampH)   ;
-				}
 			g.drawImage(po.scaled, xPos+gap/2, yPos+gap/2 ,this );
 	}
 
@@ -268,7 +303,7 @@ import java.io.*;
      	vimages.removeAllElements() ;
      	if(fwic != null)fwic = null;
      	lastSel = -1;
-     	repaint() ;
+	refresh() ;
      	Tools.gc("Clear all") ;
      }//end of clearAll()
 
@@ -505,7 +540,7 @@ import java.io.*;
     	if (lastSel > -1){
     		vimages.removeElementAt(lastSel);
      	    lastSel-- ;
-     	    repaint();
+	    refresh();
      	 return ;
      	 }
     }
@@ -539,7 +574,7 @@ import java.io.*;
         	vimages.addElement(exPo);
         else
         	vimages.insertElementAt( exPo ,lastSel) ;
-        repaint();
+        refresh();
       }//end of past
 
     }//end of class

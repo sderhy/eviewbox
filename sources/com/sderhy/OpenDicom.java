@@ -64,7 +64,7 @@ public class OpenDicom {
 		      po.pixelSpacingColumn = header.getPixelSpacingColumnValue();
 		      mc.vimages.addElement(po) ;
 		      po.isDicom = true ;
-		      canvas.repaint() ;
+		      canvas.refresh() ;
 		    }
 			}catch (IOException e){
 				tools.Tools.debug("exception "+ e);

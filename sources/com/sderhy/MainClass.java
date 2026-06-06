@@ -178,11 +178,9 @@ public class MainClass extends Frame  implements WindowListener{
 			MainClass mc ;
 			public 	CompoListener(MainClass mc){
 				this.mc = mc ;
-				}
+			}
 			public void componentResized(ComponentEvent e){
-				 Dimension d = mc.getSize() ;
-				 mc.canvas.setSize(d) ;
-				 repaint();
+				 mc.canvas.refresh() ;
 
 			}//endofComponentResized
 

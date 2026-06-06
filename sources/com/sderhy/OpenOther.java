@@ -11,38 +11,38 @@ import tools.Tools ;
 public class OpenOther  {
 
 	public static int numImage = 0 ;
-	
-/////////////////////////////////////////////////////////////////////////////////////////////			 
-		public static boolean openStringURL(String StringURL, MainClass mc) {	
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+		public static boolean openStringURL(String StringURL, MainClass mc) {
 			java.net.URL url;
 			try { url = new java.net.URL(StringURL) ;}
 			catch (MalformedURLException m){
 				Tools.debug(OpenOther.class , m.toString());
 				 return false ;
-			}	
-			
+			}
+
 		return OpenGif.fromURL( mc, url) ;
- 	}
-/////////////////////////////////////////////////////////////////////////////////////////////			 
-			
-		public static boolean fromURL(URL url ,MainClass mc) {	
+	}
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+		public static boolean fromURL(URL url ,MainClass mc) {
 		TextField TF = mc.TF ;
 		PixCanvas canvas  = mc.canvas ;
 		Image image= null ;
-		
+
 		try{
 			PPM.PPMDecoder ppm = new PPM.PPMDecoder() ;
-		 	image = ppm.getImage(url) ;
+			image = ppm.getImage(url) ;
 		}
 			catch( IOException e) { return false ;}
 		if(image == null){
 			TF.setText("Error not a typical image PPM, PGM or PBM format" );
 			return false;
 		}//end if image ==null
-		
+
 		MediaTracker tr = new MediaTracker(canvas ) ;
 		tr.addImage(image,0);
-		
+
 		try{tr.waitForID(0) ;} catch(InterruptedException e) {};
 		//check for error :
 		if (tr.isErrorID(0)){
@@ -53,14 +53,14 @@ public class OpenOther  {
 		PixObject po = new PixObject(url, image,  canvas, false , null  ) ;
 		mc.vimages.addElement(po) ;
 		TF.setText(url.toString()) ;
-		canvas.repaint() ;
+		canvas.refresh() ;
 		return true ;
-		
-	}//end of OpenOther.fromURL()	
-	
-/////////////////////////////////////////////////////////////////////////////////////////////		
-				
-		public static boolean BMPfromURL(URL url ,MainClass mc) {	
+
+	}//end of OpenOther.fromURL()
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+		public static boolean BMPfromURL(URL url ,MainClass mc) {
 		TextField TF = mc.TF ;
 		PixCanvas canvas  = mc.canvas ;
 		Image image= null ;
@@ -72,10 +72,10 @@ public class OpenOther  {
 			TF.setText("Error not a typical image BMP format" );
 			return false;
 		}//end if image ==null
-		
+
 		MediaTracker tr = new MediaTracker(canvas ) ;
 		tr.addImage(image,0);
-		
+
 		try{tr.waitForID(0) ;} catch(InterruptedException e) {};
 		//check for error :
 		if (tr.isErrorID(0)){
@@ -85,9 +85,9 @@ public class OpenOther  {
 		PixObject po = new PixObject(url, image,  canvas, false , null  ) ;
 		mc.vimages.addElement(po) ;
 		TF.setText(url.toString()) ;
-		canvas.repaint() ;
+		canvas.refresh() ;
 		return true ;
-		
-		}//end of method()			
-		
+
+		}//end of method()
+
 }//end of class
