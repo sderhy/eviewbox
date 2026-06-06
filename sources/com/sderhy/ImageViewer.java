@@ -24,6 +24,8 @@ public class ImageViewer extends com.sderhy.myFrame
 	*/
 
 	int x =0, y ;//upper corner of the image///ATTENTION  read the comment.
+	int viewerBrightness = 100 ;
+	int viewerContrast = 100 ;
 
 	int lastx,lasty ;//for Mouse dragg
 	int screenH,screenW ;
@@ -91,13 +93,25 @@ public class ImageViewer extends com.sderhy.myFrame
 
 	public void setImage(Image newImage){
 		if(newImage == null) return ;
-		image = newImage ;
+		int previousX = x ;
+		int previousY = y ;
+		int previousDestw = destw ;
+		int previousDesth = desth ;
 		origPic = newImage ;
 		w = newImage.getWidth(this) ;
 		h = newImage.getHeight(this) ;
+		image = applyCurrentWindowLevel(newImage) ;
+		destw = previousDestw ;
+		desth = previousDesth ;
+		x = previousX ;
+		y = previousY ;
 		offs = null ;
-		arrangeIt();
 		repaint();
+	}
+
+	private Image applyCurrentWindowLevel(Image source){
+		if(viewerBrightness == 100 && viewerContrast == 100) return source ;
+		return ProcessImage.brighten(this, source, viewerBrightness, viewerContrast) ;
 	}
 
 	public Dimension getPreferredSize() { return new Dimension(w,h+getInsets().top);}
@@ -157,7 +171,11 @@ public class ImageViewer extends com.sderhy.myFrame
 		else if(command == "translate" ) mouseAction = 0;
 		else if(command == "contrast" ){
 				 mouseAction = 2;
+				 ProcessImage.brightness = viewerBrightness ;
+				 ProcessImage.contrast = viewerContrast ;
 				 if(lWW ==  null)lWW = new LWWidget(100,100) ;// initialize window level.
+				 lWW.setl(viewerBrightness);
+				 lWW.setw(viewerContrast);
 
 				}
 		else if (command == "pseudoColor"){
@@ -262,6 +280,8 @@ public void processMouseEvent(MouseEvent e) {
 			if(mouseAction ==2){ // WINDOW LEVEL
 				DrawLayout = true ;
 				image = ProcessImage.brighten2(this ,origPic,dx,dy) ;//x = brightness , y= contrast
+				viewerContrast = ProcessImage.contrast ;
+				viewerBrightness = ProcessImage.brightness ;
 				layoutString = " "+ ProcessImage.contrast + " "+ ProcessImage.brightness ;
 
 				if( lWW != null){
@@ -305,4 +325,3 @@ public void processMouseEvent(MouseEvent e) {
 
 
 }//END OF CLASS
-

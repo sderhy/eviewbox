@@ -39,6 +39,13 @@ public static Image brightenCurrent( Component c,Image src){
 	return src;
 }
 
+public static Image brighten( Component c,Image src, int brightnessValue, int contrastValue){
+	ImageFilter  filter = new Brighten2(brightnessValue,contrastValue) ;
+	ImageProducer producer = new FilteredImageSource(src.getSource(),filter);
+	trackImage(c, src = c.createImage(producer));
+	return src;
+}
+
 public static int[] grabPixels(Component c , Image src){
 	int w = 	src.getWidth(c) ;
 	int h =     src.getHeight(c);
