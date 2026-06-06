@@ -185,7 +185,10 @@ import java.io.*;
 		    			po.isShowing = true;
 		    		}else{
 		    				Frame f=Winager.getPixObject(po);
-		    				if(f != null) f.toFront() ;
+					if(f != null) {
+					frame.toBack();
+					f.toFront() ;
+					}
 		    		}
 		    	}
 		    }
