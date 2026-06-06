@@ -38,6 +38,10 @@ public class OpenDicom {
 
 				info =  dR.getInfos();
 				DicomHeaderReader header = dR.getDicomHeaderReader();
+				// "See Attributes" now shows every parsed element, not just
+				// the curated summary.
+				String[] allTags = header.getAllElements();
+				if(allTags != null && allTags.length > 0) info = allTags;
 
 				// A great modification made by Michael Pasternak to
 				//open multiple images : (Thank you Mike !)
