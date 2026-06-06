@@ -38,7 +38,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
     img =  getImageNumber(currentImage) ;
     w = img.getWidth(this) ;
     h = img.getHeight(this) ;
-    thickness = getSliceThicknessInPixels();
+    thickness = parent.getSliceSpacingInPixels(thickness);
     zh = thickness * numberOfImages ;
 
 	 dc = new DrawableCanvas(this) ;
@@ -112,30 +112,47 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 			points[i] = 	y*w + i ;
 ///*/
 
-	// taille de l'image à reconstruire :
-		int[] zpixels  = new int[zh * w] ;
-		int y = dc.y1 ;
-	// Remplir le tableau de pixels :
-		 PixObject po = null;
-		 Image img = null ;
-		 int[] pixels = new int [w] ;
-		 int offset = 0 ;
-		 for(int i =0 ; i < vimages.size() ; i++){
-			 po = (PixObject)vimages.elementAt(i);
-			img   = po.image ;
+		// taille de l'image a reconstruire :
+			int[] zpixels  = new int[zh * w] ;
+			int y = dc.y1 ;
+			int[][] rows = new int[numberOfImages][w] ;
+			for(int i =0 ; i < numberOfImages ; i++){
+				PixObject po = (PixObject)vimages.elementAt(i);
+				Image img = po.image ;
+				PixelGrabber pg = new PixelGrabber(img,0,y,w,1,rows[i],0,w);
+				try{ pg.grabPixels();} catch(InterruptedException e){;}
+			}
 
-			PixelGrabber pg = new PixelGrabber(img,0,y,w,1,pixels,0,w);
-			try{ pg.grabPixels();} catch(InterruptedException e){;}
-			// remplir le tableau zpixels
+			int offset = 0 ;
+			for(int i =0 ; i < numberOfImages ; i++){
+				int[] current = rows[i];
+				int[] next = (i + 1 < numberOfImages) ? rows[i + 1] : current;
+				for(int j = 0 ; j< thickness ; j++)	{
+					float ratio = (thickness <= 1) ? 0f : (float)j / (float)thickness;
+					interpolateRow(current, next, ratio, zpixels, offset, w);
+					offset += w ;
+				}//endfor j
+			}//endfor i
+			return  createImage(new MemoryImageSource(w,zh,zpixels,0,w));
 
-			for(int j = 0 ; j< thickness ; j++)	{
-				System.arraycopy(pixels, 0, zpixels,offset, w);
-				 //(Object src, intsrc_position,object dest ,int dest_postion,int length )
-				offset += w ;
-			}//endfor j
-		}//endfor i
-		return  createImage(new MemoryImageSource(w,zh,zpixels,0,w));
+		}
 
+	private void interpolateRow(int[] current, int[] next, float ratio, int[] destination, int offset, int width){
+		for(int x = 0 ; x < width ; x++){
+			destination[offset + x] = interpolatePixel(current[x], next[x], ratio);
+		}
+	}
+
+	private int interpolatePixel(int a, int b, float ratio){
+		int alpha = (a >>> 24);
+		int red = interpolateChannel((a >> 16) & 0xff, (b >> 16) & 0xff, ratio);
+		int green = interpolateChannel((a >> 8) & 0xff, (b >> 8) & 0xff, ratio);
+		int blue = interpolateChannel(a & 0xff, b & 0xff, ratio);
+		return (alpha << 24) | (red << 16) | (green << 8) | blue;
+	}
+
+	private int interpolateChannel(int a, int b, float ratio){
+		return a + Math.round((b - a) * ratio);
 	}
 
 	public void zUpdate(){
@@ -197,21 +214,6 @@ protected Image getImageNumber(int num){
 	 PixObject po = (PixObject)vimages.elementAt(num) ;
 	 return po.image ;
 
-}
-private int getSliceThicknessInPixels(){
-	if(vimages == null || vimages.isEmpty()) return thickness ;
-	PixObject po = (PixObject)vimages.firstElement();
-	double sliceSpacing = po.spacingBetweenSlices;
-	if(sliceSpacing <= 0) sliceSpacing = po.sliceThickness;
-	if(sliceSpacing <= 0 && vimages.size() > 1){
-		PixObject next = (PixObject)vimages.elementAt(1);
-		if(po.sliceLocation > -1 && next.sliceLocation > -1)
-			sliceSpacing = Math.abs(next.sliceLocation - po.sliceLocation);
-	}
-	double pixelSpacing = po.pixelSpacingRow;
-	if(pixelSpacing <= 0) pixelSpacing = po.pixelSpacingColumn;
-	if(sliceSpacing <= 0 || pixelSpacing <= 0) return thickness ;
-	return Math.max(1, (int)Math.round(sliceSpacing / pixelSpacing));
 }
 public void setThickness(int mm){
 		this.thickness = mm * 3 ;
