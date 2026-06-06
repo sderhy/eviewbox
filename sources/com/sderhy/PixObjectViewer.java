@@ -110,8 +110,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		 public void show(){
 			super.show() ;
 			po.isShowing = true ;
-			if(sourceCanvas != null && sourceCanvas.frame != null) sourceCanvas.frame.toBack();
-			toFront();
+			Winager.keepMainBehindApplicationWindows(this);
 			requestFocus();
 		 }
 

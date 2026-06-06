@@ -67,6 +67,16 @@ public  class Winager {
 		return null ;
 	}
 
+	public static void keepMainBehindApplicationWindows(Frame topFrame) {
+		for(int i = 0 ; i < windoz.size() ; i++){
+			Frame f = (Frame)windoz.elementAt(i);
+			if(f instanceof MainClass) continue ;
+			if(f == topFrame) continue ;
+			if(f.isShowing()) f.toFront();
+		}
+		if(topFrame != null && topFrame.isShowing()) topFrame.toFront();
+	}
+
 
 	public static void add(Frame f){
 		if(windoz.indexOf(f)>=0 ) return ;//eviter les repetitions
