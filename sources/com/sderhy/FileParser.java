@@ -33,6 +33,7 @@ public class FileParser extends Frame
 	private int fileHeaderSize , dataSize ;
 	private int byteSelected = 0;
 	private boolean signed = false ;
+	private boolean isDicomFile = false ;
 	public boolean ignoreNegValues = true ;
  	private byte[]  data;
 	private String fileName;
@@ -345,8 +346,16 @@ public boolean handleEvent(Event event){
 
 //---------guessButton !---------------------------- :
 	public void guessWhat(){
-		
-		
+
+		// If this is a DICOM file, don't try to guess a raw geometry : decode
+		// its header, show every attribute and fill the fields so OK can open it.
+		if(looksLikeDicom()){
+			DicomDecoder.DicomHeaderReader header = new DicomDecoder.DicomHeaderReader(data);
+			showDicomAttributes(header);
+			fillFromDicom(header);
+			return ;
+		}
+
 		if(size >= 672100){
 			height = size = 820 ;
 			bitsAllocated  = 8 ;	
@@ -384,12 +393,83 @@ public boolean handleEvent(Event event){
 			bitsAllocated = 8;
 			}
 		else if (size < 16384 ){
-			AlertBox AB = new AlertBox (parent , "This file is too small !");
-			cancel();
+			// Too small to hold a raw image matrix : rather than dismissing the
+			// file, try to read it as a DICOM dataset and show its attributes.
+			showDicomAttributes();
+			return ;
 		}
 		updateData();
 
 	}//end of guessWhat()
+
+/**
+*	True if the file carries the DICOM Part-10 magic ("DICM" at offset 128),
+*	i.e. it is a regular DICOM file rather than a raw image matrix.
+*/
+	protected boolean looksLikeDicom(){
+		return data != null && data.length >= 132
+			&& data[128] == 'D' && data[129] == 'I'
+			&& data[130] == 'C' && data[131] == 'M' ;
+	}
+
+/**
+*	Fills the dialog fields (geometry, bit depth, pixel representation) from a
+*	parsed DICOM header so the image can be opened with the OK button.
+*/
+	protected void fillFromDicom(DicomDecoder.DicomHeaderReader header){
+		int rows = header.getRows();
+		int cols = header.getColumns();
+		int ba   = header.getBitAllocated();
+		if(rows <= 0 || cols <= 0 || ba <= 0) return ;   // no decodable image in the header
+
+		isDicomFile   = true ;
+		height        = rows ;
+		width         = cols ;
+		bitsAllocated = ba ;
+		bitsStored    = (header.getBitStored() > 0) ? header.getBitStored() : ba ;
+		signed        = (header.getPixelRepresentation() == 1) ;
+		if(signed) Signed.setState(true); else Unsigned.setState(true);
+
+		updateData();   // sets the text fields / checkboxes and enables OK
+	}//end of fillFromDicom()
+
+/**
+*	Reads the file as a DICOM dataset and shows every parsed attribute in a
+*	separate window. Used for DICOM files and as a fallback when the raw-size
+*	heuristic of guessWhat() cannot find a plausible image geometry.
+*/
+	protected void showDicomAttributes(){
+		showDicomAttributes(new DicomDecoder.DicomHeaderReader(data));
+	}
+
+	protected void showDicomAttributes(DicomDecoder.DicomHeaderReader header){
+		String[] attributes = header.getAllElements();
+		if(attributes == null || attributes.length == 0){
+			AlertBox AB = new AlertBox(parent, "No DICOM attributes found in this file !");
+			return ;
+		}
+
+		Frame attrFrame = new Frame("DICOM Attributes - " + f.getName());
+		TextArea ta = new TextArea();
+		ta.setEditable(false);
+		ta.setFont(new Font("Monaco", Font.PLAIN, 10));
+
+		StringBuffer sb = new StringBuffer();
+		sb.append("File : " + fileName + "\n");
+		sb.append("Size : " + size + " bytes\n\n");
+		for(int i = 0 ; i < attributes.length ; i++) sb.append(attributes[i] + "\n");
+		ta.setText(sb.toString());
+
+		attrFrame.add(ta);
+		attrFrame.addWindowListener(new java.awt.event.WindowAdapter(){
+			public void windowClosing(java.awt.event.WindowEvent e){
+				e.getWindow().dispose();
+			}
+		});
+		attrFrame.setSize(520, 400);
+		attrFrame.move(40, 40);
+		attrFrame.show();
+	}//end of showDicomAttributes()
 
 /**
 *	updateData() 
@@ -399,6 +479,19 @@ public boolean handleEvent(Event event){
 	protected  void updateData()	{
 
 		dataSize = height * width * (bitsAllocated/8);
+
+		// A real DICOM file is decoded by the dedicated reader, which reads the
+		// pixels at their exact position : the raw-layout heuristic below does
+		// not apply, so we always allow opening it.
+		if(isDicomFile){
+			fileHeaderSize = (size > dataSize) ? size - dataSize : 0 ;
+			byteSelected = size ;
+			canOpen = true ;
+			OK.enable();
+			setParameters(height,width,fileHeaderSize,dataSize);
+			return ;
+		}
+
 		if ( dataSize <= size && dataSize > DATASIZE_MIN){
 			fileHeaderSize = size - dataSize ;
 			byteSelected = size ;
@@ -471,8 +564,14 @@ public boolean handleEvent(Event event){
 				parent.TF.setText("Not a valid File URL" );
 				return ;
 		}
-	
-	
+
+		// DICOM file : decode with the dedicated reader (exact pixel position,
+		// multi-frame, attributes) rather than the raw-layout path below.
+		if(isDicomFile){
+			openDicomImage(url);
+			return ;
+		}
+
 			if(canOpen){
     		DicomDecoder.DicomReader 
     		dR = new DicomDecoder.DicomReader(
@@ -501,6 +600,38 @@ public boolean handleEvent(Event event){
     		//parent.canvas.repaint();
     		}//endif CanOpen() ;
     	}
+
+/**
+*	Decodes the file as DICOM and adds the resulting image(s) to the canvas,
+*	flagged as DICOM and carrying the full attribute list (so "See Attributes"
+*	in the viewer works). Mirrors OpenDicom but reuses the bytes already read.
+*/
+	private void openDicomImage(java.net.URL url){
+		try{
+			DicomDecoder.DicomReader dR = new DicomDecoder.DicomReader(data);
+			DicomDecoder.DicomHeaderReader header = dR.getDicomHeaderReader();
+			String[] info = header.getAllElements();
+			Image[] images = dR.getImages();
+
+			MediaTracker tr = new MediaTracker(this);
+			for(int i = 0 ; i < images.length ; i++){
+				tr.addImage(images[i], i);
+				try{ tr.waitForID(i); } catch(InterruptedException e){}
+				PixObject ob = new PixObject(url, images[i], parent.canvas, true, info);
+				ob.isDicom              = true ;
+				ob.sliceThickness       = header.getSliceThicknessValue();
+				ob.spacingBetweenSlices = header.getSpacingBetweenSlicesValue();
+				ob.sliceLocation        = header.getSliceLocationValue();
+				ob.pixelSpacingRow      = header.getPixelSpacingRowValue();
+				ob.pixelSpacingColumn   = header.getPixelSpacingColumnValue();
+				parent.canvas.vimages.addElement(ob);
+			}
+			Tools.gc();
+			parent.canvas.refresh();
+		}catch(IOException e){
+			AlertBox AB = new AlertBox(parent, "Cannot decode DICOM pixels : " + e.getMessage());
+		}
+	}//end of openDicomImage()
 	
 	
 	

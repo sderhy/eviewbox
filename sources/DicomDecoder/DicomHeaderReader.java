@@ -276,18 +276,78 @@ public  class DicomHeaderReader{
 		while(p + 8 <= dataLength){
 			int group   = u16(p);
 			int element = u16(p + 2);
-			long len    = u32(p + 4);
+			long len    = u32(p + 4);   // Item / delimitation tags carry no VR.
 			p += 8;
 			if(group == 0xFFFE && element == 0xE0DD) return p;   // sequence end
-			if(len == UNDEFINED_LENGTH){
-				p = skipUndefinedLength(p);                       // nested item
+			if(group == 0xFFFE && element == 0xE000){            // item
+				if(len == UNDEFINED_LENGTH){
+					p = skipItem(p);     // undefined-length item: walk its content
+				} else {
+					long np = p + len;   // defined-length item: jump over it
+					if(np > dataLength || np < p) return dataLength;
+					p = (int) np;
+				}
 			} else {
-				long np = p + len;
-				if(np > dataLength || np < p) return dataLength;
-				p = (int) np;
+				// Not an item where one was expected: bail out tolerantly.
+				return dataLength;
 			}
 		}
 		return dataLength;
+	}
+
+/**
+*	Walk the content of an undefined-length item, element by element and
+*	VR-aware, until the Item Delimitation (FFFE,E00D). The dataset inside an
+*	item uses the SAME VR encoding as the enclosing dataset, so it cannot be
+*	skipped with the implicit-VR shortcut used for items themselves.
+*/
+	private int skipItem(int p){
+		while(p + 8 <= dataLength){
+			int group   = u16(p);
+			int element = u16(p + 2);
+			if(group == 0xFFFE && element == 0xE00D) return p + 8;   // item end (+len 0)
+			int np = skipElement(p);
+			if(np <= p) return dataLength;   // malformed: stop cleanly
+			p = np;
+		}
+		return dataLength;
+	}
+
+/**
+*	Skip a single data element (VR-aware) and return the offset of the next
+*	element. Recurses through nested undefined-length sequences. Returns -1
+*	on malformed / truncated input.
+*/
+	private int skipElement(int p){
+		if(p + 8 > dataLength) return -1;
+		int group = u16(p);
+		boolean isItemTag = (group == 0xFFFE);
+		p += 4;
+
+		int vr = 0;
+		long len;
+		if(explicitVR && !isItemTag){
+			if(p + 2 > dataLength) return -1;
+			int c1 = data[p] & 0xff, c2 = data[p+1] & 0xff;
+			vr = (c1 << 8) | c2;
+			p += 2;
+			if(isLongFormVR(vr)){
+				p += 2;                          // 2 reserved bytes
+				if(p + 4 > dataLength) return -1;
+				len = u32(p); p += 4;
+			} else {
+				if(p + 2 > dataLength) return -1;
+				len = u16(p); p += 2;
+			}
+		} else {
+			if(p + 4 > dataLength) return -1;
+			len = u32(p); p += 4;
+		}
+
+		if(len == UNDEFINED_LENGTH) return skipUndefinedLength(p);
+		long np = p + len;
+		if(np > dataLength || np < p) return -1;
+		return (int) np;
 	}
 
 	private static boolean isLongFormVR(int vr){
