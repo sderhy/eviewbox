@@ -142,6 +142,8 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			int previousX = x;
 			int previousY = y;
 			Dimension windowSize = getSize();
+			boolean keepWindowLevel = DrawLayout && layoutString != null && layoutString.length() > 0;
+			String previousLayoutString = layoutString;
 
 			if(isShowingInfo && infoFrame != null){
 				infoFrame.hide();
@@ -167,8 +169,15 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 				desth = (previousHeight == 0) ? h : (previousDestHeight * h) / previousHeight;
 				centerImage();
 			}
-			DrawLayout = false ;
-			layoutString = "";
+			if(keepWindowLevel){
+				image = ProcessImage.brightenCurrent(this, origPic);
+				DrawLayout = true ;
+				layoutString = previousLayoutString;
+			}
+			else{
+				DrawLayout = false ;
+				layoutString = "";
+			}
 			setSize(windowSize);
 			offs = null;
 			sourceCanvas.lastSel = nextIndex ;
