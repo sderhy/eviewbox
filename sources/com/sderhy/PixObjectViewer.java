@@ -16,7 +16,6 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	PixCanvas sourceCanvas ;
 	InfoFrame infoFrame ;
 	boolean isShowingInfo = false ;
-	boolean dicomMenuInstalled = false ;
 	volatile boolean autoScrolling = false ;
 	Thread autoScrollThread ;
 	MenuItem autoScrollMenu ;
@@ -33,6 +32,13 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			enableEvents(AWTEvent.KEY_EVENT_MASK);
 			initReconstructionMenu();
 			initAutoScrollMenu();
+			// Reinstall the Dicom menu whenever this window regains focus :
+			// on the shared macOS menu bar it is wiped when another window takes over.
+			addWindowListener(new WindowAdapter(){
+				public void windowActivated(WindowEvent e){
+					if(po.isDicom) init() ;
+				}
+			});
 			if(po.isDicom) init() ;
 			}// end Of constructor
 
@@ -63,9 +69,13 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		}
 
 		public void init()	{
-			if(dicomMenuInstalled) return ;
-
 			MenuBar mb = this.getMenuBar() ;
+			if(mb == null) return ;
+			// Idempotent : only add the menu if the current MenuBar does not have it yet.
+			// The MenuBar may be rebuilt (myFrame.arrange) and lose the menu, so we
+			// can't rely on a one-shot flag : we scan the live bar instead.
+			if(findMenu(mb, "Dicom") != null) return ;
+
 			Menu dicomMenu =  new Menu("Dicom") ;
 			MenuItem m ;
 			dicomMenu.add(m = new MenuItem("See Attributes"));//Undo
@@ -73,11 +83,17 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			dicomMenu.add(m = new MenuItem("Hide Attributes"));//Undo
 			m.addActionListener(this);
 			mb.add(dicomMenu);
-			dicomMenuInstalled = true ;
-
-
-
 	}//endOfInit(
+
+		// Returns the menu with the given label in the bar, or null if absent.
+		private Menu findMenu(MenuBar mb, String label){
+			if(mb == null) return null ;
+			for(int i = 0 ; i < mb.getMenuCount() ; i++){
+				Menu menu = mb.getMenu(i) ;
+				if(menu != null && label.equals(menu.getLabel())) return menu ;
+			}
+			return null ;
+		}
 
 
 	public void  hide(){
