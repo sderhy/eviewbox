@@ -16,6 +16,9 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	InfoFrame infoFrame ;
 	boolean isShowingInfo = false ;
 	boolean dicomMenuInstalled = false ;
+	volatile boolean autoScrolling = false ;
+	Thread autoScrollThread ;
+	MenuItem autoScrollMenu ;
 
 		public PixObjectViewer ( PixObject po){
 			this(po, null);
@@ -27,8 +30,18 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			this.sourceCanvas = sourceCanvas;
 			addKeyListener(this);
 			enableEvents(AWTEvent.KEY_EVENT_MASK);
+			initAutoScrollMenu();
 			if(po.isDicom) init() ;
 			}// end Of constructor
+
+		private void initAutoScrollMenu(){
+			if(sourceCanvas == null) return ;
+			popup.addSeparator();
+			autoScrollMenu = new MenuItem("Start Auto Scroll");
+			autoScrollMenu.setActionCommand("autoScroll");
+			autoScrollMenu.addActionListener(this);
+			popup.add(autoScrollMenu);
+		}
 
 		public void init()	{
 			if(dicomMenuInstalled) return ;
@@ -49,6 +62,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 
 
 	public void  hide(){
+				stopAutoScroll();
 				if(isShowingInfo && infoFrame!=null){
 					infoFrame.hide() ;
 					infoFrame.dispose() ;
@@ -99,6 +113,9 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 					infoFrame.dispose() ;
 					}
 			}
+		else if(e.getActionCommand() == "autoScroll"){
+			toggleAutoScroll();
+			}
 		else if(e.getActionCommand() == "reset"){
 			image = po.image;
 			super.arrangeIt();
@@ -113,6 +130,41 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			Winager.keepMainBehindApplicationWindows(this);
 			requestFocus();
 		 }
+
+		private void toggleAutoScroll(){
+			if(autoScrolling) stopAutoScroll();
+			else startAutoScroll();
+		}
+
+		private void startAutoScroll(){
+			if(sourceCanvas == null || sourceCanvas.vimages == null || sourceCanvas.vimages.size() < 2) return ;
+			autoScrolling = true ;
+			if(autoScrollMenu != null) autoScrollMenu.setLabel("Stop Auto Scroll");
+			autoScrollThread = new Thread(new Runnable(){
+				public void run(){
+					while(autoScrolling){
+						try{ Thread.sleep(700); }
+						catch(InterruptedException interrupted){ return ;}
+						EventQueue.invokeLater(new Runnable(){
+							public void run(){
+								if(autoScrolling) showSibling(1);
+							}
+						});
+					}
+				}
+			});
+			autoScrollThread.setDaemon(true);
+			autoScrollThread.start();
+		}
+
+		private void stopAutoScroll(){
+			autoScrolling = false ;
+			if(autoScrollMenu != null) autoScrollMenu.setLabel("Start Auto Scroll");
+			if(autoScrollThread != null){
+				autoScrollThread.interrupt();
+				autoScrollThread = null ;
+			}
+		}
 
 		public void keyPressed(KeyEvent e){
 			if(e.getKeyCode() == KeyEvent.VK_RIGHT) {
