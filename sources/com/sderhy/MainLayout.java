@@ -48,6 +48,7 @@ public class MainLayout
 	"Previous Window",	"LastWindow" ,
 	"Slide Show" , "Diaporama" ,
 	"Frontal Reconstruction",	"linear" ,
+	"Sagittal Reconstruction",	"sagittal" ,
 	"Curve Reconstruction",	"curve" ,
 
 	"About...","About",
@@ -222,6 +223,9 @@ public class MainLayout
 
 // Multiplanar reconstruction :
 		 Menu multiplanar = new Menu( "Multiplanar" );
+		multiplanar.add(m=new MenuItem(commands[++index]));
+			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
+		multiplanar.addSeparator();
 		multiplanar.add(m=new MenuItem(commands[++index]));
 			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
 		multiplanar.addSeparator();

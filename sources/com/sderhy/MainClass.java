@@ -66,8 +66,9 @@ public class MainClass extends Frame  implements WindowListener{
 		else if (command.equals("ParseFile")) canvas.parseFile() ;
 		else if (command.equals("PrintImage")) canvas.print() ;
 		else if (command.equals("OpenFromURL")) this.openURLDialog() ;
-		else if (command.equals("linear")) new Multiplanar(canvas, false);
-		else if (command.equals("curve")) new Multiplanar(canvas, true);
+		else if (command.equals("linear")) new Multiplanar(canvas, Multiplanar.FRONTAL, canvas.lastSel);
+		else if (command.equals("sagittal")) new Multiplanar(canvas, Multiplanar.SAGITTAL, canvas.lastSel);
+		else if (command.equals("curve")) new Multiplanar(canvas, Multiplanar.CURVED, canvas.lastSel);
 		else if (command.equals("SaveFileSet")) canvas.saveFileSet();
 		else if (command.equals("LoadFileSet")) canvas.loadFileSet();
 		else if (command.equals("batch")) canvas.batch();// batch saving the images

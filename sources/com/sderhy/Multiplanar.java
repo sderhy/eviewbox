@@ -8,15 +8,26 @@ import java.util.* ;
 import PixObject ;
 */
 public class Multiplanar   {
+	static final int FRONTAL = 0 ;
+	static final int SAGITTAL = 1 ;
+	static final int CURVED = 2 ;
 	PixCanvas canvas ;
 	Vector vimages ;
 	boolean dental = false ;
+	int mode = FRONTAL ;
+	int currentImage = -1 ;
 	Dimension imageDimension ;
 
 		public Multiplanar(PixCanvas canvas, boolean  curve ){
+			this(canvas, curve ? CURVED : FRONTAL, -1);
+		}
+
+		public Multiplanar(PixCanvas canvas, int mode, int currentImage){
 
 			this.vimages = canvas.vimages ;
-			this.dental = curve ;
+			this.mode = mode ;
+			this.dental = (mode == CURVED) ;
+			this.currentImage = currentImage ;
 			if(verify()){
 				letTheUserDraw() ;
 			}
@@ -43,12 +54,12 @@ public class Multiplanar   {
 			}
 
 			public void letTheUserDraw(){
-			if(dental){
+			if(mode == CURVED){
 				DrawJaws dJ = new DrawJaws(this);
 				dJ.show();
 			}
 			else{
-			DrawableFrame dF = new DrawableFrame( this ) ;
+			DrawableFrame dF = new DrawableFrame( this, mode ) ;
 			dF.show() ;
 			}
 		}

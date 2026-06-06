@@ -164,6 +164,7 @@ public  class DrawJaws extends Mpr{
 
 	private void display(){
 			ImageViewer iv = new ImageViewer(zImg ) ;
+			iv.setTitle("Curved linear reconstruction") ;
 			iv.show();
 
 	}

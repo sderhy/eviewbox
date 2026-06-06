@@ -32,7 +32,8 @@ public abstract class Mpr extends Frame implements WindowListener, ActionListene
 			this.setSize(w + 20 , h +10) ;
 				setResizable(false);
 			    this.addWindowListener(this);
-			currentImage =numberOfImages - 1;
+			currentImage = orig.currentImage ;
+			if(currentImage < 0 || currentImage >= numberOfImages) currentImage = numberOfImages - 1;
 			img =  getImageNumber(currentImage) ;
 			w = img.getWidth(this) ;
 			h = img.getHeight(this) ;

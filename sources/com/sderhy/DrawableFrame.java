@@ -11,16 +11,17 @@ import tools.Tools.*;
 **/
 public class DrawableFrame extends Frame implements WindowListener, ActionListener{
 	 Image  img , zImg ;
-	 Frame f;
+	 ImageViewer resultViewer ;
 	 Vector vimages ;
 	 Multiplanar parent ;
 	 int numberOfImages ;
 	 int  currentImage ;
 	 int  thickness  =  14 ; // in pixels ( 28 pixels /cm at  72 dpi )
 	 int  w, h ;
+	 int zw ;
 	 int zh ;
+	 int mode = Multiplanar.FRONTAL ;
 	 DrawableCanvas dc ;
-	 ZCanvas zCanvas ;
 	Panel supP,infP,leftP,rightP ;
 
 	public MenuBar mb ;
@@ -28,16 +29,23 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	public String[] menuThick = new String[] { "1 mm","1","2 mm","2","5mm","5","10 mm","10"};
 
   public DrawableFrame( Multiplanar orig ) {
-    super("Multiplanar reconstruction");
+    this(orig, Multiplanar.FRONTAL);
+  }
+
+  public DrawableFrame( Multiplanar orig, int mode ) {
+    super(mode == Multiplanar.SAGITTAL ? "Sagittal reconstruction" : "Frontal reconstruction");
     this.parent  = orig ;
+    this.mode = mode ;
 
     vimages = orig.getVector();
     numberOfImages = vimages.size() ;
-    currentImage =numberOfImages - 1;
+    currentImage = orig.currentImage ;
+    if(currentImage < 0 || currentImage >= numberOfImages) currentImage = numberOfImages - 1;
 
     img =  getImageNumber(currentImage) ;
     w = img.getWidth(this) ;
     h = img.getHeight(this) ;
+    zw = getReconstructionWidth();
     thickness = parent.getSliceSpacingInPixels(thickness);
     zh = thickness * numberOfImages ;
 
@@ -50,10 +58,8 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	this.add("Center", dc) ;
 
 	zImg = zconstruc();
-	zCanvas = new ZCanvas( zImg, w ,zh ) ;
-	f = new Frame("Z Axis Reconstruction") ;
-	f.add("Center" ,zCanvas) ;
-	f.setSize(w , zh+ 20 ) ;
+	resultViewer = new ImageViewer(zImg) ;
+	resultViewer.setTitle(mode == Multiplanar.SAGITTAL ? "Sagittal reconstruction" : "Frontal reconstruction") ;
 	/*
 	infP.add(zCanvas);
 	infP.setBackground(Color.pink) ;
@@ -63,14 +69,14 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	this.setSize(w + 20 , h +10/* + zh*/) ;
 	setResizable(false);
     this.addWindowListener(this);
-	f.setLocation( 10 , 10 ) ;
-	f.show() ;
+	resultViewer.setLocation( 10 , 10 ) ;
+	resultViewer.show() ;
 
 	arrange() ;
   //	addActionListener(this);
 
 	this.setLocation( 100  , /*f.getSize().height/2 */+ 30 ) ;
-	f.toFront();
+	resultViewer.toFront();
    }
 
 	protected void arrange(){
@@ -113,13 +119,15 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 ///*/
 
 		// taille de l'image a reconstruire :
-			int[] zpixels  = new int[zh * w] ;
-			int y = dc.y1 ;
-			int[][] rows = new int[numberOfImages][w] ;
+			zw = getReconstructionWidth();
+			int[] zpixels  = new int[zh * zw] ;
+			int[][] rows = new int[numberOfImages][zw] ;
 			for(int i =0 ; i < numberOfImages ; i++){
 				PixObject po = (PixObject)vimages.elementAt(i);
 				Image img = po.image ;
-				PixelGrabber pg = new PixelGrabber(img,0,y,w,1,rows[i],0,w);
+				PixelGrabber pg ;
+				if(isSagittal()) pg = new PixelGrabber(img,dc.x1,0,1,h,rows[i],0,1);
+				else pg = new PixelGrabber(img,0,dc.y1,w,1,rows[i],0,w);
 				try{ pg.grabPixels();} catch(InterruptedException e){;}
 			}
 
@@ -129,11 +137,11 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 				int[] next = (i + 1 < numberOfImages) ? rows[i + 1] : current;
 				for(int j = 0 ; j< thickness ; j++)	{
 					float ratio = (thickness <= 1) ? 0f : (float)j / (float)thickness;
-					interpolateRow(current, next, ratio, zpixels, offset, w);
-					offset += w ;
+					interpolateRow(current, next, ratio, zpixels, offset, zw);
+					offset += zw ;
 				}//endfor j
 			}//endfor i
-			return  createImage(new MemoryImageSource(w,zh,zpixels,0,w));
+			return  createImage(new MemoryImageSource(zw,zh,zpixels,0,zw));
 
 		}
 
@@ -157,13 +165,12 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 
 	public void zUpdate(){
 
-		zCanvas.setImage( zconstruc() );
-		zCanvas.repaint() ;
-//		f.repaint() ;
+		zImg = zconstruc();
+		if(resultViewer != null) resultViewer.setImage(zImg) ;
 
 	}
 	public void dispose(){
-		f.dispose() ;
+		if(resultViewer != null) resultViewer.dispose() ;
 		super.dispose() ;
 		}
 
@@ -219,12 +226,13 @@ public void setThickness(int mm){
 		this.thickness = mm * 3 ;
 		zh = thickness * numberOfImages ;
 		zImg = zconstruc();
-		zCanvas.setImage(zImg ) ;
-		f.setSize(w , zh+ 20 ) ;
+		if(resultViewer != null) resultViewer.setImage(zImg) ;
 		repaint() ;
 }
 
 public boolean isDental(){ return parent.dental ;}
+public boolean isSagittal(){ return mode == Multiplanar.SAGITTAL ;}
+private int getReconstructionWidth(){ return isSagittal() ? h : w ;}
 
 //ActionListener :
 public void actionPerformed(ActionEvent e){

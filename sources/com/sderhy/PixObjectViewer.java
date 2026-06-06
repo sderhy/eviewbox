@@ -31,9 +31,27 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			this.sourceCanvas = sourceCanvas;
 			addKeyListener(this);
 			enableEvents(AWTEvent.KEY_EVENT_MASK);
+			initReconstructionMenu();
 			initAutoScrollMenu();
 			if(po.isDicom) init() ;
 			}// end Of constructor
+
+		private void initReconstructionMenu(){
+			if(sourceCanvas == null) return ;
+			Menu reconstruction = new Menu("Reconstruction");
+			MenuItem m ;
+			reconstruction.add(m = new MenuItem("Frontal Linear"));
+			m.setActionCommand("mprFrontal");
+			m.addActionListener(this);
+			reconstruction.add(m = new MenuItem("Sagittal Linear"));
+			m.setActionCommand("mprSagittal");
+			m.addActionListener(this);
+			reconstruction.add(m = new MenuItem("Curved Linear"));
+			m.setActionCommand("mprCurved");
+			m.addActionListener(this);
+			popup.addSeparator();
+			popup.add(reconstruction);
+		}
 
 		private void initAutoScrollMenu(){
 			if(sourceCanvas == null) return ;
@@ -117,6 +135,15 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		else if(e.getActionCommand() == "autoScroll"){
 			toggleAutoScroll();
 			}
+		else if(e.getActionCommand() == "mprFrontal"){
+			startReconstruction(Multiplanar.FRONTAL);
+			}
+		else if(e.getActionCommand() == "mprSagittal"){
+			startReconstruction(Multiplanar.SAGITTAL);
+			}
+		else if(e.getActionCommand() == "mprCurved"){
+			startReconstruction(Multiplanar.CURVED);
+			}
 		else if(e.getActionCommand() == "reset"){
 			image = po.image;
 			super.arrangeIt();
@@ -131,6 +158,11 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			Winager.keepMainBehindApplicationWindows(this);
 			requestFocus();
 		 }
+
+		private void startReconstruction(int mode){
+			if(sourceCanvas == null || sourceCanvas.vimages == null) return ;
+			new Multiplanar(sourceCanvas, mode, sourceCanvas.vimages.indexOf(po));
+		}
 
 		private void toggleAutoScroll(){
 			if(autoScrolling) stopAutoScroll();
