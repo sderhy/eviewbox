@@ -90,7 +90,12 @@ import java.io.*;
 			setSize(size);
 			invalidate();
 			Container parent = getParent();
-			if(parent != null) parent.doLayout();
+			if(parent != null){
+				parent.invalidate();
+				parent.doLayout();
+				parent.validate();
+			}
+			if(frame != null) frame.validate();
 		}
 		repaint();
 	}

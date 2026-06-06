@@ -137,6 +137,7 @@ public class MainClass extends Frame  implements WindowListener{
 			if(OpenGif.fromFile(theFile,this)) repaint() ;
 		}//endif
 	} //endFor
+	canvas.refresh();
 
  }
 
