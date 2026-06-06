@@ -135,6 +135,13 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			int nextIndex = (index + increment + size) % size;
 			PixObject next = (PixObject)sourceCanvas.vimages.elementAt(nextIndex);
 			if(next == null) return ;
+			int previousWidth = w;
+			int previousHeight = h;
+			int previousDestWidth = destw;
+			int previousDestHeight = desth;
+			int previousX = x;
+			int previousY = y;
+			Dimension windowSize = getSize();
 
 			if(isShowingInfo && infoFrame != null){
 				infoFrame.hide();
@@ -149,14 +156,26 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			origPic = image ;
 			w = po.w ;
 			h = po.h ;
+			if(previousWidth == w && previousHeight == h){
+				destw = previousDestWidth;
+				desth = previousDestHeight;
+				x = previousX;
+				y = previousY;
+			}
+			else{
+				destw = (previousWidth == 0) ? w : (previousDestWidth * w) / previousWidth;
+				desth = (previousHeight == 0) ? h : (previousDestHeight * h) / previousHeight;
+				centerImage();
+			}
 			DrawLayout = false ;
 			layoutString = "";
+			setSize(windowSize);
+			offs = null;
 			sourceCanvas.lastSel = nextIndex ;
 			sourceCanvas.frame.TF.setText(po.url.toString());
 			sourceCanvas.repaint();
 			if(po.isDicom) init() ;
 			setTitle("Image " + (nextIndex + 1) + " / " + size);
-			arrangeIt();
 			repaint();
 			requestFocus();
 		}
@@ -207,5 +226,3 @@ class InfoFrame extends java.awt.Frame implements WindowListener {
 
 
 }// end of class
-
-
