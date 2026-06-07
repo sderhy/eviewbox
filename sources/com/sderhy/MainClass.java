@@ -50,6 +50,7 @@ public class MainClass extends Frame  implements WindowListener{
 	public void doCommand(String command){
 		if (command.equals ("OpenGIF")) OpenGif.fromFile(this) ;
 		else if (command.equals("OpenDicom"))OpenDicom.fromFile(this) ;
+		else if (command.equals("OpenExamination")) OpenExamination.run(this) ;
 		else if (command.equals("clear")) canvas.clear();
       	else if (command.equals("open")) canvas.open();
       	else if (command.equals("clearAll")) canvas.clearAll();

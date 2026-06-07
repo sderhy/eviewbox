@@ -116,6 +116,11 @@ public class MainLayout
 	//menu file
 		file = new Menu("File");
 		MenuItem m;//  m est utilisée pour souscrire aux ActionListener;
+		// Open Examination first : it is the everyday entry point (the rest is for power users).
+		// Explicit strings so it does not disturb the commands[++index] sequence.
+		file.add(m = new MenuItem("Open Examination...", new MenuShortcut(KeyEvent.VK_E)));
+			m.addActionListener(al); m.setActionCommand("OpenExamination");
+		file.addSeparator();
 		file.add(m=new MenuItem(commands[index]));// OpenFolder
 			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
 		file.add(m=new MenuItem("Clear Icons"));
