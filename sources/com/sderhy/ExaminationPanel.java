@@ -59,7 +59,7 @@ public class ExaminationPanel extends JPanel {
 			public void actionPerformed(ActionEvent e){ mc.closeExamination() ; }
 		}) ;
 		header.add(close, BorderLayout.EAST) ;
-		add(header, BorderLayout.NORTH) ;
+		// header is added NORTH below, stacked with the controls row.
 
 		JPanel center = new JPanel(new BorderLayout()) ;
 		center.setBackground(PANEL_BG) ;
@@ -78,17 +78,29 @@ public class ExaminationPanel extends JPanel {
 		center.add(sp, BorderLayout.CENTER) ;
 		add(center, BorderLayout.CENTER) ;
 
-		JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT)) ;
-		south.setBackground(PANEL_BG) ;
+		JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT)) ;
+		controls.setBackground(PANEL_BG) ;
+		// Frame the controls so the top reads as a toolbar, not a floating button.
+		javax.swing.border.TitledBorder frame =
+			BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.gray), "Series") ;
+		frame.setTitleColor(PANEL_FG) ;
+		controls.setBorder(frame) ;
 		loadButton = new JButton("Load series") ;
 		loadButton.addActionListener(new ActionListener(){
 			public void actionPerformed(ActionEvent e){ loadSelected() ; }
 		}) ;
-		south.add(loadButton) ;
+		controls.add(loadButton) ;
 		status = new JLabel(" ") ;
 		status.setForeground(PANEL_FG) ;
-		south.add(status) ;
-		add(south, BorderLayout.SOUTH) ;
+		controls.add(status) ;
+
+		// Header + controls go NORTH together, so the tree scroll pane reaches the
+		// bottom edge and its horizontal scrollbar lines up with the canvas's.
+		JPanel north = new JPanel(new BorderLayout()) ;
+		north.setBackground(PANEL_BG) ;
+		north.add(header, BorderLayout.NORTH) ;
+		north.add(controls, BorderLayout.CENTER) ;
+		add(north, BorderLayout.NORTH) ;
 
 		// Draggable divider on the right edge to adjust the panel width.
 		add(makeResizeGripper(), BorderLayout.EAST) ;
