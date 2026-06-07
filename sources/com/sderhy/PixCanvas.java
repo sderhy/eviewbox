@@ -49,7 +49,7 @@ import java.io.*;
                              // Add item to the popup menu
       }//endfor
       	this.add(popup);
-		this.setBackground(new Color(0x0879ed6)) ;
+		this.setBackground(Color.gray.darker().darker()) ;// same gray as the top panel
 		//this.setBackground(Color.gray) ; //old version
       	lastSel = -1 ;
     }//end of constructor

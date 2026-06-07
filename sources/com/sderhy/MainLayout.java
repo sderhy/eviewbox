@@ -30,12 +30,8 @@ public class MainLayout
 	"Open From URL...",	"OpenFromURL",
 	"Print Image..." ,"PrintImage",
 	"Load Images Set...",	"LoadFileSet",
-	"Close",	"Close",
 	"Save Canvas Image..." ,	 "SaveAsGIF" ,
-	"Save All Images In a Folder...", "batch",
-	"Save All Small Images...", "batchSmall",
 	"Save Images Set...",	"SaveFileSet",
-	"Generate Html...", "GenerateHtml" ,
 	"Quit" ,"Quit" ,
 	"Undo", "Undo",
 	"Cut" , "Cut",
@@ -78,7 +74,7 @@ public class MainLayout
 		f.setLayout(new BorderLayout()) ;
 		f.setBounds(10,10,440,440);
 		//f.setBackground(Color.lightGray);
-		f.setBackground(new Color(0x0879ed6));
+		f.setBackground(Color.gray.darker().darker());// same gray as the top panel
 //North panel : supPanel :
 		InsetPanel supPanel = new InsetPanel(Color.gray.darker().darker());
 		supPanel.setEtched(true);
@@ -87,7 +83,7 @@ public class MainLayout
 		TF.setBackground(Color.white);
 //Pixcanvas for displaying images
 		//canvas.setBackground(Color.lightGray);
-		canvas.setBackground(new Color(0x0879ed6));
+		canvas.setBackground(Color.gray.darker().darker());// same gray as the top panel
 		//canvas.addMouseMotionListener(al);
 		//canvas.addMouseListener(al) ;
 
@@ -146,36 +142,11 @@ public class MainLayout
 			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
 		file.addSeparator();
 
-		file.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_W)));//Close
-			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-
-		file.addSeparator();
-
 		file.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_S)));//SaveAsGif
 			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-/*****************************************
-		file.add(m=new MenuItem(commands[++index]));// batch saving...
-			m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-//  ****************************************	*/
-
-	open = new Menu("Batch Saving");
-				//	open.add(m=new MenuItem(commands[++index]));
-				//	m.addActionListener(al);m.setActionCommand(commands[++index]) ;//OpenDicom
-					open.add(m = new MenuItem(commands[++index]));
-					m.addActionListener(al);m.setActionCommand(commands[++index]) ;//Save All Images In a Folder ...
-					open.add(m=new MenuItem(commands[++index]));
-					m.addActionListener(al);m.setActionCommand(commands[++index]) ;//Save As Small Images ....
-
-				file.add(open);
-
-//  ****************************************	*/
-
 		file.add(m=new MenuItem(commands[++index]));//SaveFileSet
 		m.addActionListener(al);m.setActionCommand(commands[++index]) ;
 		//		file.add(new MenuItem("Revert"));
-
-		file.add(m=new MenuItem(commands[++index]));//GenerateHtml
-		m.addActionListener(al);m.setActionCommand(commands[++index]) ;
 
 
 //		file.add(m=new MenuItem(commands[++index],new MenuShortcut( KeyEvent.VK_T)));//SaveFileSet

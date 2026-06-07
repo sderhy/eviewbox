@@ -19,6 +19,9 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	volatile boolean autoScrolling = false ;
 	Thread autoScrollThread ;
 	MenuItem autoScrollMenu ;
+	boolean showDensity = false ;          // HU readout under the cursor
+	String densityText ;                   // current overlay text (null = nothing)
+	MenuItem densityItemDicom, densityItemPopup ; // the two toggle items (kept in sync)
 
 		public PixObjectViewer ( PixObject po){
 			this(po, null);
@@ -32,6 +35,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			enableEvents(AWTEvent.KEY_EVENT_MASK);
 			initReconstructionMenu();
 			initAutoScrollMenu();
+			initDensityMenu();
 			// Reinstall the Dicom menu whenever this window regains focus :
 			// on the shared macOS menu bar it is wiped when another window takes over.
 			addWindowListener(new WindowAdapter(){
@@ -68,6 +72,17 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			popup.add(autoScrollMenu);
 		}
 
+		private void initDensityMenu(){
+			if(po == null || !po.hasHU) return ;
+			popup.addSeparator();
+			densityItemPopup = new MenuItem(densityLabel()) ;
+			densityItemPopup.setActionCommand("toggleDensity") ;
+			densityItemPopup.addActionListener(this) ;
+			popup.add(densityItemPopup) ;
+		}
+
+		private String densityLabel(){ return showDensity ? "Hide Density" : "Display Density" ; }
+
 		public void init()	{
 			MenuBar mb = this.getMenuBar() ;
 			if(mb == null) return ;
@@ -96,6 +111,11 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 				reset.addActionListener(this) ;
 				window.add(reset) ;
 				dicomMenu.add(window) ;
+				dicomMenu.addSeparator();
+				densityItemDicom = new MenuItem(densityLabel()) ;
+				densityItemDicom.setActionCommand("toggleDensity") ;
+				densityItemDicom.addActionListener(this) ;
+				dicomMenu.add(densityItemDicom) ;
 			}
 			mb.add(dicomMenu);
 	}//endOfInit(
@@ -148,6 +168,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			return ;
 		}
 		if("winReset".equals(cmd)){ applyWindow(po.defaultCenter, po.defaultWidth) ; return ; }
+		if("toggleDensity".equals(cmd)){ toggleDensity() ; return ; }
 
 		if(e.getActionCommand() == "print"){
 			 print() ;
@@ -359,6 +380,49 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 
 		protected String windowLevelLabel(){
 			return " C:" + Math.round(po.windowCenter) + "  W:" + Math.round(po.windowWidth) ;
+		}
+
+		// Toggle the Hounsfield readout ; keep both menu items (Dicom + popup) in sync.
+		private void toggleDensity(){
+			showDensity = !showDensity ;
+			String label = densityLabel() ;
+			if(densityItemDicom != null) densityItemDicom.setLabel(label) ;
+			if(densityItemPopup != null) densityItemPopup.setLabel(label) ;
+			if(!showDensity) densityText = null ;
+			repaint() ;
+		}
+
+		// Track the cursor to read the HU value of the pixel under it.
+		public void processMouseMotionEvent(MouseEvent e){
+			super.processMouseMotionEvent(e) ;     // keep zoom / translate / window-level
+			if(showDensity && po != null && po.hasHU) updateDensity(e.getX(), e.getY()) ;
+		}
+
+		private void updateDensity(int sx, int sy){
+			if(destw <= 0 || desth <= 0){ return ; }
+			int ix = (sx - x) * w / destw ;
+			int iy = (sy - y) * h / desth ;
+			String previous = densityText ;
+			if(ix < 0 || iy < 0 || ix >= w || iy >= h){
+				densityText = null ;
+			} else {
+				int idx = iy * w + ix ;
+				densityText = (idx >= 0 && idx < po.hu.length)
+					? ("HU " + po.hu[idx] + "    (" + ix + ", " + iy + ")")
+					: null ;
+			}
+			if(densityText != previous && (densityText == null || !densityText.equals(previous))) repaint() ;
+		}
+
+		// Append the HU readout to the bottom-left overlay.
+		protected void drawLayout(Graphics g){
+			super.drawLayout(g) ;
+			if(showDensity && densityText != null){
+				Color saved = g.getColor() ;
+				g.setColor(Color.yellow) ;
+				g.drawString(densityText, 10, getSize().height - 12) ;
+				g.setColor(saved) ;
+			}
 		}
 
 		// Apply a fixed window (preset or reset) and refresh the display.

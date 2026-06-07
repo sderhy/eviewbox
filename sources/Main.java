@@ -4,7 +4,7 @@ public final  class Main
 
 	public static void main(String args[]){
 		setApplicationName();
-		com.sderhy.MainClass MC = new com.sderhy.MainClass("EViewBox !");
+		com.sderhy.MainClass MC = new com.sderhy.MainClass("EViewBox");
 		if(args != null && args.length > 0){
 			try {
 				MC.canvas.loadFileSet(new java.net.URL(args[0]));
