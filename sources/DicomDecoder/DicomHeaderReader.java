@@ -524,6 +524,32 @@ public  class DicomHeaderReader{
 		public double getPixelSpacingRowValue(){ return parseDecimal(pixelSpacing, 0); }
 		public double getPixelSpacingColumnValue(){ return parseDecimal(pixelSpacing, 1); }
 
+	/** Rescale Slope (0028,1053). Defaults to 1 when absent. */
+		public double getRescaleSlope(){
+			double v = firstValue(getaString(0x0028, 0x1053));
+			return Double.isNaN(v) ? 1.0 : v;
+		}
+	/** Rescale Intercept (0028,1052) — for CT, turns stored values into Hounsfield Units. Defaults to 0. */
+		public double getRescaleIntercept(){
+			double v = firstValue(getaString(0x0028, 0x1052));
+			return Double.isNaN(v) ? 0.0 : v;
+		}
+	/** Window Center (0028,1050), first value. NaN when the tag is absent. */
+		public double getWindowCenter(){ return firstValue(getaString(0x0028, 0x1050)); }
+	/** Window Width (0028,1051), first value. NaN when the tag is absent. */
+		public double getWindowWidth(){ return firstValue(getaString(0x0028, 0x1051)); }
+
+	/** First value of a possibly multi-valued DS string (\-separated), or NaN. */
+		private double firstValue(String value){
+			if(value == null) return Double.NaN;
+			value = value.trim();
+			if(value.length() == 0 || value.equals("Unknown")) return Double.NaN;
+			int bs = value.indexOf('\\');
+			if(bs >= 0) value = value.substring(0, bs).trim();
+			try{ return Double.valueOf(value).doubleValue(); }
+			catch(NumberFormatException nfe){ return Double.NaN; }
+		}
+
 /** Retrieves a String when you know the tags. */
 	public String  getaString(int groupNumber, int elementNumber){
 		return getaString( groupNumber, elementNumber, 0) ;

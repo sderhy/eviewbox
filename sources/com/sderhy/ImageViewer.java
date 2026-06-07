@@ -279,15 +279,23 @@ public void processMouseEvent(MouseEvent e) {
 			}
 			if(mouseAction ==2){ // WINDOW LEVEL
 				DrawLayout = true ;
-				image = ProcessImage.brighten2(this ,origPic,dx,dy) ;//x = brightness , y= contrast
-				viewerContrast = ProcessImage.contrast ;
-				viewerBrightness = ProcessImage.brightness ;
-				layoutString = " "+ ProcessImage.contrast + " "+ ProcessImage.brightness ;
+				// For DICOM with Hounsfield data, drag does a real HU window/level
+				// (subclass hook). Otherwise fall back to the generic brightness/contrast.
+				Image huImg = windowLevelDrag(dx, dy) ;
+				if(huImg != null){
+					image = huImg ;
+					layoutString = windowLevelLabel() ;
+				} else {
+					image = ProcessImage.brighten2(this ,origPic,dx,dy) ;//x = brightness , y= contrast
+					viewerContrast = ProcessImage.contrast ;
+					viewerBrightness = ProcessImage.brightness ;
+					layoutString = " "+ ProcessImage.contrast + " "+ ProcessImage.brightness ;
 
-				if( lWW != null){
-					if(!lWW.isShowing())lWW.show() ;
-					lWW.setl( ProcessImage.brightness); //think contrast
-					lWW.setw( ProcessImage.contrast);// think brightness
+					if( lWW != null){
+						if(!lWW.isShowing())lWW.show() ;
+						lWW.setl( ProcessImage.brightness); //think contrast
+						lWW.setw( ProcessImage.contrast);// think brightness
+					}
 				}
 			}
 			repaint();
@@ -296,6 +304,14 @@ public void processMouseEvent(MouseEvent e) {
       super.processMouseMotionEvent(e);  // Important!
     }//end of processMouseMotionEvent
 
+
+	/** Hook : a window/level mouse drag. Returns a re-windowed image, or null to
+	*	let the generic brightness/contrast path handle it. Overridden by viewers
+	*	that carry Hounsfield-Unit data. */
+	protected Image windowLevelDrag(int dx, int dy){ return null ; }
+
+	/** Hook : the overlay label shown after a windowLevelDrag(). */
+	protected String windowLevelLabel(){ return layoutString ; }
 
 	protected void drawLayout(Graphics g){
 

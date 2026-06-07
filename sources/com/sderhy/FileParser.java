@@ -611,20 +611,15 @@ public boolean handleEvent(Event event){
 			DicomDecoder.DicomReader dR = new DicomDecoder.DicomReader(data);
 			DicomDecoder.DicomHeaderReader header = dR.getDicomHeaderReader();
 			String[] info = header.getAllElements();
-			Image[] images = dR.getImages();
+
+			// HU-aware PixObjects (real window/level), same factory as OpenDicom.
+			PixObject[] pos = OpenDicom.buildDicomPixObjects(dR, url, parent.canvas, info);
 
 			MediaTracker tr = new MediaTracker(this);
-			for(int i = 0 ; i < images.length ; i++){
-				tr.addImage(images[i], i);
+			for(int i = 0 ; i < pos.length ; i++){
+				tr.addImage(pos[i].image, i);
 				try{ tr.waitForID(i); } catch(InterruptedException e){}
-				PixObject ob = new PixObject(url, images[i], parent.canvas, true, info);
-				ob.isDicom              = true ;
-				ob.sliceThickness       = header.getSliceThicknessValue();
-				ob.spacingBetweenSlices = header.getSpacingBetweenSlicesValue();
-				ob.sliceLocation        = header.getSliceLocationValue();
-				ob.pixelSpacingRow      = header.getPixelSpacingRowValue();
-				ob.pixelSpacingColumn   = header.getPixelSpacingColumnValue();
-				parent.canvas.vimages.addElement(ob);
+				parent.canvas.vimages.addElement(pos[i]);
 			}
 			Tools.gc();
 			parent.canvas.refresh();

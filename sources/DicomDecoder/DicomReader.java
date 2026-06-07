@@ -138,6 +138,50 @@ public class DicomReader{
 	public String[]    getInfos(){  return dHR.getInfo() ; }
 	
 	public byte[] getPixels( ){ return pixData ; }
+
+	public int getWidth(){ return w ; }
+	public int getHeight(){ return h ; }
+
+/**
+*	Returns the frame's pixels converted to Hounsfield Units (or, more generally,
+*	the modality-rescaled value : stored*RescaleSlope + RescaleIntercept), kept
+*	at full 16-bit precision. This is the data a real window/level transform must
+*	work on — NOT the 8-bit min/max-stretched image getImage() produces.
+*	@param frame 1-based frame index.
+*/
+	public short[] getHU(int frame) throws IOException{
+		byte[] pd = dHR.getPixels(frame) ;
+		return decodeHU(pd, dHR.getRescaleSlope(), dHR.getRescaleIntercept()) ;
+	}
+
+	private short[] decodeHU(byte[] pd, double slope, double intercept){
+		int len = w * h ;
+		short[] hu = new short[len] ;
+		if(n == 1){					// 8 bits / pixel
+			for(int i = 0 ; i < len && i < pd.length ; i++){
+				int s = pd[i] & 0xff ;
+				hu[i] = clampShort(s * slope + intercept) ;
+			}
+		} else {					// 16 bits / pixel
+			for(int i = 0 ; i < len ; i++){
+				int idx = 2 * i ;
+				if(idx + 1 >= pd.length) break ;
+				int raw ;
+				if(highBit >= 8) raw = ((pd[idx+1] & 0xff) << 8) | (pd[idx] & 0xff) ;   // little-endian
+				else             raw = ((pd[idx]   & 0xff) << 8) | (pd[idx+1] & 0xff) ; // big-endian
+				int s = signed ? (int)(short)raw : (raw & 0xffff) ;
+				hu[i] = clampShort(s * slope + intercept) ;
+			}
+		}
+		return hu ;
+	}
+
+	private static short clampShort(double v){
+		long r = Math.round(v) ;
+		if(r > Short.MAX_VALUE) r = Short.MAX_VALUE ;
+		if(r < Short.MIN_VALUE) r = Short.MIN_VALUE ;
+		return (short)r ;
+	}
 	
 ////////////////////////////////////////////////////////////////////////////////////////////
 /** method getImage()  uses the Toolkit to create a 256 shades of gray image  */

@@ -82,8 +82,30 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			m.addActionListener(this);
 			dicomMenu.add(m = new MenuItem("Hide Attributes"));//Undo
 			m.addActionListener(this);
+			// Hounsfield window presets (only when HU data is available).
+			if(po.hasHU){
+				Menu window = new Menu("Window") ;
+				addPreset(window, "Lung",                  -600, 1500) ;
+				addPreset(window, "Mediastinum (soft tissue)", 40,  400) ;
+				addPreset(window, "Abdomen (liver)",         60,  400) ;
+				addPreset(window, "Bone",                   500, 2000) ;
+				addPreset(window, "Brain",                   40,   80) ;
+				window.addSeparator();
+				MenuItem reset = new MenuItem("Reset (header default)") ;
+				reset.setActionCommand("winReset") ;
+				reset.addActionListener(this) ;
+				window.add(reset) ;
+				dicomMenu.add(window) ;
+			}
 			mb.add(dicomMenu);
 	}//endOfInit(
+
+		private void addPreset(Menu m, String label, double center, double width){
+			MenuItem mi = new MenuItem(label + "   (C " + (int)center + " / W " + (int)width + ")") ;
+			mi.setActionCommand("win:" + center + ":" + width) ;
+			mi.addActionListener(this) ;
+			m.add(mi) ;
+		}
 
 		// Returns the menu with the given label in the bar, or null if absent.
 		private Menu findMenu(MenuBar mb, String label){
@@ -112,6 +134,20 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	}
 //*/
 	public  void actionPerformed(ActionEvent e){
+
+		String cmd = e.getActionCommand() ;
+		// Window presets are built dynamically, so compare by value (not ==).
+		if(cmd != null && cmd.startsWith("win:")){
+			int c1 = cmd.indexOf(':') ;
+			int c2 = cmd.indexOf(':', c1 + 1) ;
+			try{
+				double center = Double.parseDouble(cmd.substring(c1 + 1, c2)) ;
+				double width  = Double.parseDouble(cmd.substring(c2 + 1)) ;
+				applyWindow(center, width) ;
+			}catch(Exception ex){}
+			return ;
+		}
+		if("winReset".equals(cmd)){ applyWindow(po.defaultCenter, po.defaultWidth) ; return ; }
 
 		if(e.getActionCommand() == "print"){
 			 print() ;
@@ -257,6 +293,9 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 				isShowingInfo = false;
 				infoFrame = null;
 			}
+			// Carry the current HU window over to the next slice (radiology convention).
+			double carryCenter = po.hasHU ? po.windowCenter : Double.NaN ;
+			double carryWidth  = po.hasHU ? po.windowWidth  : Double.NaN ;
 			po.isShowing = false ;
 			po = next ;
 			po.isShowing = true ;
@@ -275,7 +314,13 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 				desth = (previousHeight == 0) ? h : (previousDestHeight * h) / previousHeight;
 				centerImage();
 			}
-			if(keepWindowLevel){
+			if(po.hasHU && !Double.isNaN(carryCenter)){
+				image = po.renderWindow(carryCenter, carryWidth) ;
+				origPic = image ;
+				DrawLayout = true ;
+				layoutString = windowLevelLabel() ;
+			}
+			else if(keepWindowLevel){
 				image = ProcessImage.brightenCurrent(this, origPic);
 				DrawLayout = true ;
 				layoutString = previousLayoutString;
@@ -293,6 +338,41 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			setTitle("Image " + (nextIndex + 1) + " / " + size);
 			repaint();
 			requestFocus();
+		}
+
+		// HU window/level mouse drag : horizontal moves the center (level),
+		// vertical moves the width. Returns null for non-DICOM images so the
+		// generic brightness/contrast path takes over.
+		protected Image windowLevelDrag(int dx, int dy){
+			if(po == null || !po.hasHU) return null ;
+			double center = po.windowCenter + dx ;          // ~1 HU per pixel
+			double width  = po.windowWidth  + dy * 2.0 ;    // ~2 HU per pixel
+			if(width < 1) width = 1 ;
+			Image img = po.renderWindow(center, width) ;
+			if(lWW != null){
+				if(!lWW.isShowing()) lWW.show() ;
+				lWW.setl((int)Math.round(center)) ;
+				lWW.setw((int)Math.round(width)) ;
+			}
+			return img ;
+		}
+
+		protected String windowLevelLabel(){
+			return " C:" + Math.round(po.windowCenter) + "  W:" + Math.round(po.windowWidth) ;
+		}
+
+		// Apply a fixed window (preset or reset) and refresh the display.
+		private void applyWindow(double center, double width){
+			if(po == null || !po.hasHU) return ;
+			image = po.renderWindow(center, width) ;
+			origPic = image ;
+			DrawLayout = true ;
+			layoutString = windowLevelLabel() ;
+			if(lWW != null && lWW.isShowing()){
+				lWW.setl((int)Math.round(center)) ;
+				lWW.setw((int)Math.round(width)) ;
+			}
+			repaint() ;
 		}
 
 		 public void print(){
