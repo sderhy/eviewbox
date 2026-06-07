@@ -99,6 +99,14 @@ public class DicomDirBrowser extends JFrame {
 		loadButton.setEnabled(false) ;
 		status.setText("Loading " + files.size() + " image(s)…") ;
 
+		// Clear the canvas first so series are never mixed together.
+		mc.canvas.clearAll() ;
+
+		// Keep the browser open but move it behind the main window so the loaded
+		// images are visible : the user closes the browser explicitly when done.
+		mc.toFront() ;
+		toBack() ;
+
 		Thread worker = new Thread(new Runnable(){
 			public void run(){
 				final int[] ok = {0} ;
