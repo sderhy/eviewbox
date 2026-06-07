@@ -22,6 +22,7 @@ public class MainClass extends Frame  implements WindowListener{
 	public PixCanvas canvas;
 	public Vector vimages ;
 	private File lastOpenDirectory ;
+	private ExaminationPanel examPanel ;   // embedded DICOMDIR / examination tree (left side)
 	public MainClass( String title){
 		super( title ) ;
 		TF = new TextField(80) ;
@@ -87,6 +88,25 @@ public class MainClass extends Frame  implements WindowListener{
 	 public void close(){
     	this.dispose();
     }
+
+	/** Show an examination tree as a panel on the left of the main window.
+	*	Replaces any previously opened examination panel. */
+	public void showExamination(Examination exam){
+		if(examPanel != null) remove(examPanel) ;
+		examPanel = new ExaminationPanel(exam, this) ;
+		add(examPanel, BorderLayout.WEST) ;
+		validate() ;
+		examPanel.repaint() ;
+	}
+
+	/** Remove the examination panel from the main window. */
+	public void closeExamination(){
+		if(examPanel == null) return ;
+		remove(examPanel) ;
+		examPanel = null ;
+		validate() ;
+		repaint() ;
+	}
 
 	public void openURLDialog(){
 		com.sderhy.openURLDialog d = new com.sderhy.openURLDialog("http://wwwusers.imaginet.fr/~sderhy/vascular/sderhy.jpg", this ) ;

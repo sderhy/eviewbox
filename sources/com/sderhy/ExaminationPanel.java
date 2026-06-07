@@ -1,12 +1,14 @@
 /**
-*	DicomDirBrowser — a Swing window that shows an Examination as a collapsible
+*	ExaminationPanel — a Swing panel that shows an Examination as a collapsible
 *	Patient/Study/Series tree (built from a DICOMDIR or from a scanned folder).
-*	Selecting a node and pressing "Load" (or double-clicking) loads every image
-*	held by that node and its descendants into the main canvas, reusing
-*	OpenGif.fromFile (which transparently handles DICOM, JPEG, GIF, BMP, ...).
+*	It is embedded directly in the main window (left side) rather than living in
+*	its own floating window.
 *
-*	Loading runs on a background thread so the browser stays responsive; the
-*	final canvas refresh is marshalled back onto the event thread.
+*	Selecting a node and pressing "Load" (or double-clicking) clears the canvas
+*	then loads every image held by that node and its descendants, reusing
+*	OpenGif.fromFile (which transparently handles DICOM, JPEG, GIF, BMP, ...).
+*	Loading runs on a background thread so the panel stays responsive; the final
+*	canvas refresh is marshalled back onto the event thread.
 *
 *	@author Serge Derhy
 */
@@ -18,7 +20,7 @@ import java.util.List ;
 import javax.swing.* ;
 import javax.swing.tree.* ;
 
-public class DicomDirBrowser extends JFrame {
+public class ExaminationPanel extends JPanel {
 
 	private final MainClass mc ;
 	private final JTree tree ;
@@ -26,37 +28,50 @@ public class DicomDirBrowser extends JFrame {
 	private final JLabel status ;
 	private volatile boolean loading = false ;
 
-	public DicomDirBrowser(Examination exam, MainClass mc){
-		super(exam.fromDicomDir ? "DICOMDIR" : "Examination (no DICOMDIR)") ;
+	public ExaminationPanel(Examination exam, MainClass mc){
 		this.mc = mc ;
+		setLayout(new BorderLayout()) ;
+		setPreferredSize(new Dimension(300, 400)) ;
 
 		DefaultMutableTreeNode root = toTreeNode(exam.root) ;
 		tree = new JTree(new DefaultTreeModel(root)) ;
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION) ;
 		expandFirstLevels(tree, root) ;
 
-		getContentPane().setLayout(new BorderLayout()) ;
+		// Header : title on the left, a close button on the right.
+		JPanel header = new JPanel(new BorderLayout()) ;
+		header.add(new JLabel(exam.fromDicomDir ? "  DICOMDIR" : "  Examination (no DICOMDIR)"),
+				BorderLayout.CENTER) ;
+		JButton close = new JButton("✕") ;
+		close.setMargin(new Insets(0,5,0,5)) ;
+		close.setToolTipText("Close the examination panel") ;
+		close.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e){ mc.closeExamination() ; }
+		}) ;
+		header.add(close, BorderLayout.EAST) ;
+		add(header, BorderLayout.NORTH) ;
 
+		JPanel center = new JPanel(new BorderLayout()) ;
 		if(exam.warning != null){
-			JLabel banner = new JLabel(" ⚠  " + exam.warning) ;
+			JLabel banner = new JLabel("<html>&#9888; " + exam.warning + "</html>") ;
 			banner.setOpaque(true) ;
 			banner.setBackground(new Color(0xFFF3CD)) ;
 			banner.setForeground(new Color(0x8A6D3B)) ;
 			banner.setBorder(BorderFactory.createEmptyBorder(6,8,6,8)) ;
-			getContentPane().add(banner, BorderLayout.NORTH) ;
+			center.add(banner, BorderLayout.NORTH) ;
 		}
-
-		getContentPane().add(new JScrollPane(tree), BorderLayout.CENTER) ;
+		center.add(new JScrollPane(tree), BorderLayout.CENTER) ;
+		add(center, BorderLayout.CENTER) ;
 
 		JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT)) ;
-		loadButton = new JButton("Load selected series") ;
+		loadButton = new JButton("Load series") ;
 		loadButton.addActionListener(new ActionListener(){
 			public void actionPerformed(ActionEvent e){ loadSelected() ; }
 		}) ;
 		south.add(loadButton) ;
 		status = new JLabel(" ") ;
 		south.add(status) ;
-		getContentPane().add(south, BorderLayout.SOUTH) ;
+		add(south, BorderLayout.SOUTH) ;
 
 		// Double-click on a node loads it.
 		tree.addMouseListener(new MouseAdapter(){
@@ -64,9 +79,6 @@ public class DicomDirBrowser extends JFrame {
 				if(e.getClickCount() == 2) loadSelected() ;
 			}
 		}) ;
-
-		setSize(560, 620) ;
-		setLocationRelativeTo(null) ;
 	}
 
 	private static DefaultMutableTreeNode toTreeNode(Examination.Node n){
@@ -101,11 +113,6 @@ public class DicomDirBrowser extends JFrame {
 
 		// Clear the canvas first so series are never mixed together.
 		mc.canvas.clearAll() ;
-
-		// Keep the browser open but move it behind the main window so the loaded
-		// images are visible : the user closes the browser explicitly when done.
-		mc.toFront() ;
-		toBack() ;
 
 		Thread worker = new Thread(new Runnable(){
 			public void run(){

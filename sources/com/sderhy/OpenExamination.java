@@ -4,7 +4,7 @@
 *	Asks the user for a folder, searches it recursively for a DICOMDIR. If one
 *	is found the tree is built from it; otherwise the folder layout itself is
 *	scanned and shown with a warning (some series may be incomplete). The
-*	resulting Examination is displayed in a DicomDirBrowser.
+*	resulting Examination is shown as a tree panel embedded in the main window.
 *
 *	@author Serge Derhy
 */
@@ -74,7 +74,7 @@ public class OpenExamination {
 
 		final Examination toShow = exam ;
 		java.awt.EventQueue.invokeLater(new Runnable(){
-			public void run(){ new DicomDirBrowser(toShow, mc).setVisible(true) ; }
+			public void run(){ mc.showExamination(toShow) ; }
 		}) ;
 	}
 
