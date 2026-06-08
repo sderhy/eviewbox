@@ -23,6 +23,8 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 int mode = Multiplanar.FRONTAL ;
 	 DrawableCanvas dc ;
 	 private int[][] cachedPixels ;   // full pixels of each slice, grabbed once
+	 private boolean disposed = false ;
+	 private Runnable onDispose ;     // notified when the reconstruction is closed
 	Panel supP,infP,leftP,rightP ;
 
 	public MenuBar mb ;
@@ -65,6 +67,11 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	zImg = zconstruc();
 	resultViewer = new ImageViewer(zImg) ;
 	resultViewer.setTitle(mode == Multiplanar.SAGITTAL ? "Sagittal reconstruction" : "Frontal reconstruction") ;
+	installThicknessMenu() ;
+	// Closing the result window tears down the whole reconstruction.
+	resultViewer.addWindowListener(new WindowAdapter(){
+		public void windowClosing(WindowEvent e){ DrawableFrame.this.dispose() ; }
+	}) ;
 	/*
 	infP.add(zCanvas);
 	infP.setBackground(Color.pink) ;
@@ -196,7 +203,48 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 		if(resultViewer != null) resultViewer.setImage(zImg) ;
 
 	}
+
+	/** Set the cut line externally (driven by the live image viewer) and rebuild.
+	*	pos is a row for a frontal reconstruction, a column for a sagittal one. */
+	public void setCutPosition(int pos){
+		if(isSagittal()){
+			if(pos < 0) pos = 0 ; if(pos > w - 1) pos = w - 1 ;
+			dc.x1 = dc.x2 = pos ;
+		} else {
+			if(pos < 0) pos = 0 ; if(pos > h - 1) pos = h - 1 ;
+			dc.y1 = dc.y2 = pos ;
+		}
+		zUpdate() ;
+	}
+
+	public int imageW(){ return w ; }
+	public int imageH(){ return h ; }
+	public void setOnDispose(Runnable r){ onDispose = r ; }
+
+	// Add a Thickness menu to the result window (the hidden engine's own menu
+	// bar is never shown when driven from the live viewer).
+	private void installThicknessMenu(){
+		MenuBar rb = resultViewer.getMenuBar() ;
+		if(rb == null) return ;
+		Menu sT = new Menu("Thickness") ;
+		addThick(sT, "1 mm", 1) ;
+		addThick(sT, "2 mm", 2) ;
+		addThick(sT, "5 mm", 5) ;
+		addThick(sT, "10 mm", 10) ;
+		rb.add(sT) ;
+	}
+	private void addThick(Menu menu, String label, final int mm){
+		MenuItem mi = new MenuItem(label) ;
+		mi.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e){ setThickness(mm) ; }
+		}) ;
+		menu.add(mi) ;
+	}
+
 	public void dispose(){
+		if(disposed) return ;
+		disposed = true ;
+		if(onDispose != null){ try{ onDispose.run() ; } catch(Throwable t){} }
 		if(resultViewer != null) resultViewer.dispose() ;
 		super.dispose() ;
 		}

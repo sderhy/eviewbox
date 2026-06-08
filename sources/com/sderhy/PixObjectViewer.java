@@ -22,6 +22,9 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	boolean showDensity = false ;          // HU readout under the cursor
 	String densityText ;                   // current overlay text (null = nothing)
 	MenuItem densityItemDicom, densityItemPopup ; // the two toggle items (kept in sync)
+	private DrawableFrame recon ;          // hidden frontal/sagittal engine (result shown)
+	private int cutMode = -1 ;             // -1 none, else Multiplanar.FRONTAL / SAGITTAL
+	private int cutPos ;                   // cut line in image coords : row (frontal) / col (sagittal)
 
 		public PixObjectViewer ( PixObject po){
 			this(po, null);
@@ -139,6 +142,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 
 
 	public void  hide(){
+				stopReconstruction();
 				stopAutoScroll();
 				if(isShowingInfo && infoFrame!=null){
 					infoFrame.hide() ;
@@ -234,7 +238,47 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 
 		private void startReconstruction(int mode){
 			if(sourceCanvas == null || sourceCanvas.vimages == null) return ;
-			new Multiplanar(sourceCanvas, mode, sourceCanvas.vimages.indexOf(po));
+			int index = sourceCanvas.vimages.indexOf(po) ;
+			if(mode == Multiplanar.CURVED){
+				new Multiplanar(sourceCanvas, mode, index) ;   // curved : unchanged (DrawJaws)
+				return ;
+			}
+			// Frontal / sagittal : draw the cut line on THIS live viewer (navigable
+			// with the arrow keys) instead of popping a separate image window.
+			stopReconstruction() ;
+			Multiplanar mp = new Multiplanar(sourceCanvas, mode, index, false) ;
+			if(!mp.valid) return ;     // verification failed (alert already shown)
+			recon = mp.buildFrame() ;
+			recon.setOnDispose(new Runnable(){ public void run(){ clearCut() ; } }) ;
+			cutMode = mode ;
+			cutPos = (mode == Multiplanar.SAGITTAL) ? (w / 2) : (h / 2) ;
+			recon.setCutPosition(cutPos) ;
+			repaint() ;
+		}
+
+		private void stopReconstruction(){
+			if(recon != null){ DrawableFrame r = recon ; recon = null ; r.dispose() ; }
+			cutMode = -1 ;
+		}
+
+		// Called back when the result window is closed : drop the cut-line overlay.
+		private void clearCut(){
+			recon = null ;
+			cutMode = -1 ;
+			repaint() ;
+		}
+
+		// Map a mouse position to an image coordinate and move the cut line there.
+		private void updateCut(int sx, int sy){
+			if(recon == null || cutMode < 0 || destw <= 0 || desth <= 0) return ;
+			int ix = (sx - x) * w / destw ;
+			int iy = (sy - y) * h / desth ;
+			int pos = (cutMode == Multiplanar.SAGITTAL) ? ix : iy ;
+			int max = (cutMode == Multiplanar.SAGITTAL) ? (w - 1) : (h - 1) ;
+			if(pos < 0) pos = 0 ; if(pos > max) pos = max ;
+			cutPos = pos ;
+			recon.setCutPosition(cutPos) ;
+			repaint() ;
 		}
 
 		private void toggleAutoScroll(){
@@ -393,7 +437,18 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		}
 
 		// Track the cursor to read the HU value of the pixel under it.
+		public void processMouseEvent(MouseEvent e){
+			// In cut mode, a press places the reconstruction line (right-click still pops the menu).
+			if(cutMode >= 0 && e.getID() == MouseEvent.MOUSE_PRESSED && !e.isPopupTrigger())
+				updateCut(e.getX(), e.getY()) ;
+			super.processMouseEvent(e) ;
+		}
+
 		public void processMouseMotionEvent(MouseEvent e){
+			if(cutMode >= 0 && e.getID() == MouseEvent.MOUSE_DRAGGED){
+				updateCut(e.getX(), e.getY()) ; // dragging moves the cut line, not window/level
+				return ;
+			}
 			super.processMouseMotionEvent(e) ;     // keep zoom / translate / window-level
 			if(showDensity && po != null && po.hasHU) updateDensity(e.getX(), e.getY()) ;
 		}
@@ -417,6 +472,19 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		// Append the HU readout to the bottom-left overlay.
 		protected void drawLayout(Graphics g){
 			super.drawLayout(g) ;
+			// Reconstruction cut line drawn over the live image.
+			if(cutMode >= 0 && destw > 0 && desth > 0){
+				Color saved = g.getColor() ;
+				g.setColor(Color.green) ;
+				if(cutMode == Multiplanar.SAGITTAL){
+					int sx = x + cutPos * destw / w ;
+					g.drawLine(sx, y, sx, y + desth) ;
+				} else {
+					int sy = y + cutPos * desth / h ;
+					g.drawLine(x, sy, x + destw, sy) ;
+				}
+				g.setColor(saved) ;
+			}
 			if(showDensity && densityText != null){
 				Color saved = g.getColor() ;
 				g.setColor(Color.yellow) ;

@@ -17,21 +17,34 @@ public class Multiplanar   {
 	int mode = FRONTAL ;
 	int currentImage = -1 ;
 	Dimension imageDimension ;
+	boolean autoDraw = true ;
+	public boolean valid = false ;
+	public DrawableFrame frame ;
 
 		public Multiplanar(PixCanvas canvas, boolean  curve ){
 			this(canvas, curve ? CURVED : FRONTAL, -1);
 		}
 
 		public Multiplanar(PixCanvas canvas, int mode, int currentImage){
+			this(canvas, mode, currentImage, true) ;
+		}
 
+		public Multiplanar(PixCanvas canvas, int mode, int currentImage, boolean autoDraw){
 			this.vimages = canvas.vimages ;
 			this.mode = mode ;
 			this.dental = (mode == CURVED) ;
 			this.currentImage = currentImage ;
-			if(verify()){
-				letTheUserDraw() ;
-			}
+			this.autoDraw = autoDraw ;
+			valid = verify() ;
+			if(valid && autoDraw) letTheUserDraw() ;
+		}
 
+		/** Build the frontal/sagittal reconstruction engine WITHOUT opening a
+		*	cut-selection window. The result viewer is shown ; the caller drives the
+		*	cut line itself (e.g. drawing it on the live image viewer). */
+		public DrawableFrame buildFrame(){
+			frame = new DrawableFrame(this, mode) ;
+			return frame ;
 		}
 
 
