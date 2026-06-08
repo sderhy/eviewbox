@@ -22,6 +22,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 int zh ;
 	 int mode = Multiplanar.FRONTAL ;
 	 DrawableCanvas dc ;
+	 private int[][] cachedPixels ;   // full pixels of each slice, grabbed once
 	Panel supP,infP,leftP,rightP ;
 
 	public MenuBar mb ;
@@ -46,7 +47,11 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
     w = img.getWidth(this) ;
     h = img.getHeight(this) ;
     zw = getReconstructionWidth();
-    thickness = parent.getSliceSpacingInPixels(thickness);
+    // Without DICOM spacing (e.g. plain JPEG slices) assume isotropic voxels :
+    // one output row per slice. The old 14 px guess over-stretched the through-
+    // plane axis, so long stacks were shrunk to fit the screen and the
+    // reconstruction came out as a thin, wrongly-narrow band.
+    thickness = parent.getSliceSpacingInPixels(1);
     zh = thickness * numberOfImages ;
 
 	 dc = new DrawableCanvas(this) ;
@@ -119,16 +124,21 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 ///*/
 
 		// taille de l'image a reconstruire :
+			ensurePixelCache();
 			zw = getReconstructionWidth();
 			int[] zpixels  = new int[zh * zw] ;
 			int[][] rows = new int[numberOfImages][zw] ;
+			int yy = Math.max(0, Math.min(h - 1, dc.y1)) ;   // frontal  : picked row
+			int xx = Math.max(0, Math.min(w - 1, dc.x1)) ;   // sagittal : picked column
 			for(int i =0 ; i < numberOfImages ; i++){
-				PixObject po = (PixObject)vimages.elementAt(i);
-				Image img = po.image ;
-				PixelGrabber pg ;
-				if(isSagittal()) pg = new PixelGrabber(img,dc.x1,0,1,h,rows[i],0,1);
-				else pg = new PixelGrabber(img,0,dc.y1,w,1,rows[i],0,w);
-				try{ pg.grabPixels();} catch(InterruptedException e){;}
+				int[] src = cachedPixels[i];
+				if(src == null) continue ;
+				if(isSagittal()){
+					int[] dst = rows[i] ;
+					for(int j = 0 ; j < h ; j++) dst[j] = src[j * w + xx] ;
+				} else {
+					System.arraycopy(src, yy * w, rows[i], 0, w) ;
+				}
 			}
 
 			int offset = 0 ;
@@ -144,6 +154,23 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 			return  createImage(new MemoryImageSource(zw,zh,zpixels,0,zw));
 
 		}
+
+	/**
+	*	Grab every slice's full pixels once. The cut line only selects a row
+	*	(frontal) or a column (sagittal) from these cached arrays, so dragging the
+	*	line no longer re-grabs N images through a PixelGrabber each time.
+	*/
+	private void ensurePixelCache(){
+		if(cachedPixels != null) return ;
+		cachedPixels = new int[numberOfImages][] ;
+		for(int i = 0 ; i < numberOfImages ; i++){
+			PixObject po = (PixObject)vimages.elementAt(i) ;
+			int[] buf = new int[w * h] ;
+			PixelGrabber pg = new PixelGrabber(po.image, 0, 0, w, h, buf, 0, w) ;
+			try{ pg.grabPixels() ; } catch(InterruptedException e){}
+			cachedPixels[i] = buf ;
+		}
+	}
 
 	private void interpolateRow(int[] current, int[] next, float ratio, int[] destination, int offset, int width){
 		for(int x = 0 ; x < width ; x++){
@@ -204,8 +231,9 @@ scansize - the distance from one row of pixels to the next  in the array
 public void paint( Graphics g){
 	//g.drawImage(img,0,0,w,h,0,0,w,h,this) ;
 	//g.drawImage(img,0,0,w,h,this) ;//marche pas !
+	// Only repaint the cut-selection canvas ; the reconstruction is rebuilt on
+	// demand (cut-line drag, thickness change), not on every expose.
 	dc.repaint() ;
-	zUpdate() ;
 }
 public void update(Graphics g){
 
