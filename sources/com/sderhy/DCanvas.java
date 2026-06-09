@@ -28,6 +28,7 @@ public class DCanvas extends Canvas implements MouseListener, MouseMotionListene
 	}
 
 	public void mousePressed(MouseEvent e){
+		requestFocus() ;             // keep arrow-key slice navigation working
 		int x = e.getX(), y = e.getY() ;
 		if(x < 0) x = 0 ; if(x > w - 1) x = w - 1 ;
 		if(y < 0) y = 0 ; if(y > h - 1) y = h - 1 ;
