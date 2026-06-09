@@ -59,9 +59,8 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			reconstruction.add(m = new MenuItem("Sagittal Linear"));
 			m.setActionCommand("mprSagittal");
 			m.addActionListener(this);
-			reconstruction.add(m = new MenuItem("Curved Linear"));
-			m.setActionCommand("mprCurved");
-			m.addActionListener(this);
+			// Curved reconstruction lives in the main window's Multiplanar menu
+			// (its own drawing window), not here — keep this popup light.
 			popup.addSeparator();
 			popup.add(reconstruction);
 		}
@@ -218,9 +217,6 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		else if(e.getActionCommand() == "mprSagittal"){
 			startReconstruction(Multiplanar.SAGITTAL);
 			}
-		else if(e.getActionCommand() == "mprCurved"){
-			startReconstruction(Multiplanar.CURVED);
-			}
 		else if(e.getActionCommand() == "reset"){
 			image = po.image;
 			super.arrangeIt();
@@ -239,10 +235,6 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		private void startReconstruction(int mode){
 			if(sourceCanvas == null || sourceCanvas.vimages == null) return ;
 			int index = sourceCanvas.vimages.indexOf(po) ;
-			if(mode == Multiplanar.CURVED){
-				new Multiplanar(sourceCanvas, mode, index) ;   // curved : unchanged (DrawJaws)
-				return ;
-			}
 			// Frontal / sagittal : draw the cut line on THIS live viewer (navigable
 			// with the arrow keys) instead of popping a separate image window.
 			stopReconstruction() ;
