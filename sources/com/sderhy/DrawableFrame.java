@@ -25,6 +25,10 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 private int[][] cachedPixels ;   // full pixels of each slice, grabbed once
 	 private boolean disposed = false ;
 	 private Runnable onDispose ;     // notified when the reconstruction is closed
+	 // Oblique cut (crosshair) : the active line passes through (cutCX,cutCY) with
+	 // direction angle cutPhi. When set, it replaces the axis-aligned row/column.
+	 private boolean oblique = false ;
+	 private double cutCX, cutCY, cutPhi ;
 	Panel supP,infP,leftP,rightP ;
 
 	public MenuBar mb ;
@@ -122,14 +126,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 
 
   public Image zconstruc() {
-  /* Aeffacer :
-		int[] points  = new int [w] ;
-
-	// position des points
-		for (int i = 0; i < w ; i ++ )
-			points[i] = 	y*w + i ;
-///*/
-
+		if(oblique) return zconstrucOblique() ;
 		// taille de l'image a reconstruire :
 			ensurePixelCache();
 			zw = getReconstructionWidth();
@@ -161,6 +158,63 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 			return  createImage(new MemoryImageSource(zw,zh,zpixels,0,zw));
 
 		}
+
+	/** Set the active crosshair line (image coords + direction angle) and rebuild. */
+	public void setCut(double cx, double cy, double phi){
+		oblique = true ;
+		cutCX = cx ; cutCY = cy ; cutPhi = phi ;
+		zUpdate() ;
+	}
+
+	/**
+	*	Reconstruct along an arbitrary (oblique) line : the chord of the image in
+	*	direction cutPhi through (cutCX,cutCY) is sampled bilinearly in every slice ;
+	*	those rows are stacked through the slices. Frontal (phi=0) and sagittal
+	*	(phi=90deg) are just special cases.
+	*/
+	private Image zconstrucOblique(){
+		ensurePixelCache() ;
+		double dx = Math.cos(cutPhi), dy = Math.sin(cutPhi) ;
+		double[] seg = LineClip.segment(cutCX, cutCY, dx, dy, w, h) ;
+		if(seg == null){ return zImg ; }
+		double x0 = seg[0], y0 = seg[1], x1 = seg[2], y1 = seg[3] ;
+		int owidth = Math.max(1, (int)Math.round(Math.hypot(x1 - x0, y1 - y0)) + 1) ;
+		zw = owidth ;
+		int[][] rows = new int[numberOfImages][owidth] ;
+		for(int i = 0 ; i < numberOfImages ; i++){
+			int[] src = cachedPixels[i] ;
+			if(src == null) continue ;
+			int[] dst = rows[i] ;
+			for(int k = 0 ; k < owidth ; k++){
+				double t = (owidth == 1) ? 0 : (double)k / (owidth - 1) ;
+				dst[k] = sampleBilinear(src, (float)(x0 + t * (x1 - x0)), (float)(y0 + t * (y1 - y0))) ;
+			}
+		}
+		int[] zpixels = new int[zh * owidth] ;
+		int offset = 0 ;
+		for(int i = 0 ; i < numberOfImages ; i++){
+			int[] current = rows[i] ;
+			int[] next = (i + 1 < numberOfImages) ? rows[i + 1] : current ;
+			for(int j = 0 ; j < thickness ; j++){
+				float ratio = (thickness <= 1) ? 0f : (float)j / (float)thickness ;
+				interpolateRow(current, next, ratio, zpixels, offset, owidth) ;
+				offset += owidth ;
+			}
+		}
+		return createImage(new MemoryImageSource(owidth, zh, zpixels, 0, owidth)) ;
+	}
+
+	// Bilinear sample of a slice's pixels at a sub-pixel (fx, fy) position.
+	private int sampleBilinear(int[] src, float fx, float fy){
+		if(fx < 0) fx = 0 ; if(fx > w - 1) fx = w - 1 ;
+		if(fy < 0) fy = 0 ; if(fy > h - 1) fy = h - 1 ;
+		int x0 = (int)Math.floor(fx), y0 = (int)Math.floor(fy) ;
+		int x1 = Math.min(x0 + 1, w - 1), y1 = Math.min(y0 + 1, h - 1) ;
+		float tx = fx - x0, ty = fy - y0 ;
+		int top = interpolatePixel(src[y0 * w + x0], src[y0 * w + x1], tx) ;
+		int bot = interpolatePixel(src[y1 * w + x0], src[y1 * w + x1], tx) ;
+		return interpolatePixel(top, bot, ty) ;
+	}
 
 	/**
 	*	Grab every slice's full pixels once. The cut line only selects a row

@@ -22,9 +22,13 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	boolean showDensity = false ;          // HU readout under the cursor
 	String densityText ;                   // current overlay text (null = nothing)
 	MenuItem densityItemDicom, densityItemPopup ; // the two toggle items (kept in sync)
-	private DrawableFrame recon ;          // hidden frontal/sagittal engine (result shown)
-	private int cutMode = -1 ;             // -1 none, else Multiplanar.FRONTAL / SAGITTAL
-	private int cutPos ;                   // cut line in image coords : row (frontal) / col (sagittal)
+	private DrawableFrame recon ;          // hidden oblique engine (result shown)
+	private boolean crossMode = false ;    // crosshair (two orthogonal lines) is active
+	private double crCX, crCY ;            // crosshair centre, image coords
+	private double crAngle = 0 ;           // orientation of line 0 (radians)
+	private int activeLine = 0 ;           // which orthogonal line is reconstructed : 0 or 1
+	private int dragMode = 0 ;             // 0 none, 1 translate, 2 rotate
+	private static final int HANDLE_PX = 12 ;   // screen tolerance for centre / endpoints
 
 		public PixObjectViewer ( PixObject po){
 			this(po, null);
@@ -53,14 +57,12 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			if(sourceCanvas == null) return ;
 			Menu reconstruction = new Menu("Reconstruction");
 			MenuItem m ;
-			reconstruction.add(m = new MenuItem("Frontal Linear"));
-			m.setActionCommand("mprFrontal");
+			reconstruction.add(m = new MenuItem("Linear Reconstruction"));
+			m.setActionCommand("mprLinear");
 			m.addActionListener(this);
-			reconstruction.add(m = new MenuItem("Sagittal Linear"));
-			m.setActionCommand("mprSagittal");
-			m.addActionListener(this);
-			// Curved reconstruction lives in the main window's Multiplanar menu
-			// (its own drawing window), not here — keep this popup light.
+			// One crosshair (two orthogonal lines) replaces the fixed frontal /
+			// sagittal cuts : move the centre, rotate it, click a line to pick the
+			// one that is reconstructed. Curved stays in the main Multiplanar menu.
 			popup.addSeparator();
 			popup.add(reconstruction);
 		}
@@ -211,11 +213,8 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		else if(e.getActionCommand() == "autoScroll"){
 			toggleAutoScroll();
 			}
-		else if(e.getActionCommand() == "mprFrontal"){
-			startReconstruction(Multiplanar.FRONTAL);
-			}
-		else if(e.getActionCommand() == "mprSagittal"){
-			startReconstruction(Multiplanar.SAGITTAL);
+		else if(e.getActionCommand() == "mprLinear"){
+			startReconstruction();
 			}
 		else if(e.getActionCommand() == "reset"){
 			image = po.image;
@@ -232,45 +231,127 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			requestFocus();
 		 }
 
-		private void startReconstruction(int mode){
+		private void startReconstruction(){
 			if(sourceCanvas == null || sourceCanvas.vimages == null) return ;
 			int index = sourceCanvas.vimages.indexOf(po) ;
-			// Frontal / sagittal : draw the cut line on THIS live viewer (navigable
-			// with the arrow keys) instead of popping a separate image window.
+			// Draw a crosshair on THIS live viewer (navigable with the arrow keys)
+			// and reconstruct the active (oblique) line into a single result window.
 			stopReconstruction() ;
-			Multiplanar mp = new Multiplanar(sourceCanvas, mode, index, false) ;
+			Multiplanar mp = new Multiplanar(sourceCanvas, Multiplanar.FRONTAL, index, false) ;
 			if(!mp.valid) return ;     // verification failed (alert already shown)
 			recon = mp.buildFrame() ;
+			if(recon.resultViewer != null) recon.resultViewer.setTitle("Linear reconstruction") ;
 			recon.setOnDispose(new Runnable(){ public void run(){ clearCut() ; } }) ;
-			cutMode = mode ;
-			cutPos = (mode == Multiplanar.SAGITTAL) ? (w / 2) : (h / 2) ;
-			recon.setCutPosition(cutPos) ;
+			crossMode = true ;
+			crCX = w / 2.0 ; crCY = h / 2.0 ; crAngle = 0 ; activeLine = 0 ;
+			pushCut() ;
 			repaint() ;
 		}
 
 		private void stopReconstruction(){
 			if(recon != null){ DrawableFrame r = recon ; recon = null ; r.dispose() ; }
-			cutMode = -1 ;
+			crossMode = false ;
 		}
 
-		// Called back when the result window is closed : drop the cut-line overlay.
+		// Called back when the result window is closed : drop the crosshair overlay.
 		private void clearCut(){
 			recon = null ;
-			cutMode = -1 ;
+			crossMode = false ;
 			repaint() ;
 		}
 
-		// Map a mouse position to an image coordinate and move the cut line there.
-		private void updateCut(int sx, int sy){
-			if(recon == null || cutMode < 0 || destw <= 0 || desth <= 0) return ;
-			int ix = (sx - x) * w / destw ;
-			int iy = (sy - y) * h / desth ;
-			int pos = (cutMode == Multiplanar.SAGITTAL) ? ix : iy ;
-			int max = (cutMode == Multiplanar.SAGITTAL) ? (w - 1) : (h - 1) ;
-			if(pos < 0) pos = 0 ; if(pos > max) pos = max ;
-			cutPos = pos ;
-			recon.setCutPosition(cutPos) ;
+		// Direction angle of the active orthogonal line.
+		private double activePhi(){ return crAngle + activeLine * (Math.PI / 2) ; }
+
+		// Push the active line to the engine and rebuild the reconstruction.
+		private void pushCut(){
+			if(recon != null) recon.setCut(crCX, crCY, activePhi()) ;
 			repaint() ;
+		}
+
+		// --- crosshair geometry, in image coordinates -------------------------
+
+		// Endpoints of one orthogonal line (index 0 or 1), clipped to the image.
+		private double[] lineSegment(int line){
+			double phi = crAngle + line * (Math.PI / 2) ;
+			return LineClip.segment(crCX, crCY, Math.cos(phi), Math.sin(phi), w, h) ;
+		}
+
+		private int imgToScreenX(double ix){ return x + (int)Math.round(ix * destw / w) ; }
+		private int imgToScreenY(double iy){ return y + (int)Math.round(iy * desth / h) ; }
+		private double screenToImgX(int sx){ return (double)(sx - x) * w / destw ; }
+		private double screenToImgY(int sy){ return (double)(sy - y) * h / desth ; }
+
+		// Decide what a press grabs : centre (translate), an endpoint (rotate, and
+		// activate that line), or a line body (just activate it).
+		private void pressCross(int sx, int sy){
+			if(destw <= 0 || desth <= 0) return ;
+			// Centre handle ?
+			if(dist(sx, sy, imgToScreenX(crCX), imgToScreenY(crCY)) <= HANDLE_PX){
+				dragMode = 1 ; return ;
+			}
+			// Nearest endpoint of either line ?
+			int bestLine = -1 ; double best = HANDLE_PX + 1 ;
+			for(int line = 0 ; line < 2 ; line++){
+				double[] s = lineSegment(line) ;
+				if(s == null) continue ;
+				double[][] ends = {{s[0], s[1]}, {s[2], s[3]}} ;
+				for(int e = 0 ; e < 2 ; e++){
+					double d = dist(sx, sy, imgToScreenX(ends[e][0]), imgToScreenY(ends[e][1])) ;
+					if(d < best){ best = d ; bestLine = line ; }
+				}
+			}
+			if(bestLine >= 0){ activeLine = bestLine ; dragMode = 2 ; rotateTo(sx, sy) ; return ; }
+			// Otherwise : a click near a line body selects it as active.
+			int pick = nearestLine(sx, sy) ;
+			if(pick >= 0 && pick != activeLine){ activeLine = pick ; pushCut() ; }
+			dragMode = 0 ;
+		}
+
+		private void dragCross(int sx, int sy){
+			if(dragMode == 1){
+				crCX = clamp(screenToImgX(sx), 0, w - 1) ;
+				crCY = clamp(screenToImgY(sy), 0, h - 1) ;
+				pushCut() ;
+			} else if(dragMode == 2){
+				rotateTo(sx, sy) ;
+			}
+		}
+
+		// Rotate so the active line points at the cursor.
+		private void rotateTo(int sx, int sy){
+			double a = Math.atan2(screenToImgY(sy) - crCY, screenToImgX(sx) - crCX) ;
+			crAngle = a - activeLine * (Math.PI / 2) ;
+			pushCut() ;
+		}
+
+		// Index of the line whose body is closest to (sx,sy), or -1 if none within tol.
+		private int nearestLine(int sx, int sy){
+			int best = -1 ; double bestD = 8 ;
+			for(int line = 0 ; line < 2 ; line++){
+				double[] s = lineSegment(line) ;
+				if(s == null) continue ;
+				double d = pointToSegment(sx, sy,
+					imgToScreenX(s[0]), imgToScreenY(s[1]), imgToScreenX(s[2]), imgToScreenY(s[3])) ;
+				if(d < bestD){ bestD = d ; best = line ; }
+			}
+			return best ;
+		}
+
+		private static double dist(int x0, int y0, int x1, int y1){
+			double dx = x0 - x1, dy = y0 - y1 ; return Math.sqrt(dx * dx + dy * dy) ;
+		}
+		private static double clamp(double v, double lo, double hi){
+			return v < lo ? lo : (v > hi ? hi : v) ;
+		}
+		private static double pointToSegment(int px, int py, int ax, int ay, int bx, int by){
+			double vx = bx - ax, vy = by - ay ;
+			double len2 = vx * vx + vy * vy ;
+			double t = (len2 == 0) ? 0 : ((px - ax) * vx + (py - ay) * vy) / len2 ;
+			t = clamp(t, 0, 1) ;
+			double cx = ax + t * vx, cy = ay + t * vy ;
+			double dx = px - cx, dy = py - cy ;
+			return Math.sqrt(dx * dx + dy * dy) ;
 		}
 
 		private void toggleAutoScroll(){
@@ -430,15 +511,18 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 
 		// Track the cursor to read the HU value of the pixel under it.
 		public void processMouseEvent(MouseEvent e){
-			// In cut mode, a press places the reconstruction line (right-click still pops the menu).
-			if(cutMode >= 0 && e.getID() == MouseEvent.MOUSE_PRESSED && !e.isPopupTrigger())
-				updateCut(e.getX(), e.getY()) ;
+			// In crosshair mode a press grabs the centre/an endpoint/a line
+			// (right-click still pops the menu).
+			if(crossMode && e.getID() == MouseEvent.MOUSE_PRESSED && !e.isPopupTrigger())
+				pressCross(e.getX(), e.getY()) ;
+			if(crossMode && e.getID() == MouseEvent.MOUSE_RELEASED)
+				dragMode = 0 ;
 			super.processMouseEvent(e) ;
 		}
 
 		public void processMouseMotionEvent(MouseEvent e){
-			if(cutMode >= 0 && e.getID() == MouseEvent.MOUSE_DRAGGED){
-				updateCut(e.getX(), e.getY()) ; // dragging moves the cut line, not window/level
+			if(crossMode && e.getID() == MouseEvent.MOUSE_DRAGGED){
+				dragCross(e.getX(), e.getY()) ; // dragging moves/rotates the crosshair, not window/level
 				return ;
 			}
 			super.processMouseMotionEvent(e) ;     // keep zoom / translate / window-level
@@ -464,17 +548,24 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		// Append the HU readout to the bottom-left overlay.
 		protected void drawLayout(Graphics g){
 			super.drawLayout(g) ;
-			// Reconstruction cut line drawn over the live image.
-			if(cutMode >= 0 && destw > 0 && desth > 0){
+			// Crosshair drawn over the live image : active line green, other cyan.
+			if(crossMode && destw > 0 && desth > 0){
 				Color saved = g.getColor() ;
-				g.setColor(Color.green) ;
-				if(cutMode == Multiplanar.SAGITTAL){
-					int sx = x + cutPos * destw / w ;
-					g.drawLine(sx, y, sx, y + desth) ;
-				} else {
-					int sy = y + cutPos * desth / h ;
-					g.drawLine(x, sy, x + destw, sy) ;
+				for(int line = 0 ; line < 2 ; line++){
+					double[] s = lineSegment(line) ;
+					if(s == null) continue ;
+					int ax = imgToScreenX(s[0]), ay = imgToScreenY(s[1]) ;
+					int bx = imgToScreenX(s[2]), by = imgToScreenY(s[3]) ;
+					g.setColor(line == activeLine ? Color.green : Color.cyan) ;
+					g.drawLine(ax, ay, bx, by) ;
+					// Rotation handles at the line endpoints.
+					g.fillRect(ax - 2, ay - 2, 5, 5) ;
+					g.fillRect(bx - 2, by - 2, 5, 5) ;
 				}
+				// Centre (translation) handle.
+				int cx = imgToScreenX(crCX), cy = imgToScreenY(crCY) ;
+				g.setColor(Color.magenta) ;
+				g.fillRect(cx - 3, cy - 3, 7, 7) ;
 				g.setColor(saved) ;
 			}
 			if(showDensity && densityText != null){
