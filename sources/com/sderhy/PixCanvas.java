@@ -23,6 +23,7 @@ import java.io.*;
     Image  offScreen ;
     private static int compteur = 0;
     public  int lastSel = -1 ;//last image selected// no image ==-1
+    public  int selEnd  = -1 ;//shift-click extends the selection from lastSel to selEnd
 	static int stampW = PixObject.getStampSize() ;
 	static int stampH = stampW ;
 	static int gap = 2 ;
@@ -49,7 +50,7 @@ import java.io.*;
                              // Add item to the popup menu
       }//endfor
       	this.add(popup);
-		this.setBackground(Color.gray.darker().darker()) ;// same gray as the top panel
+		this.setBackground(Prefs.getBackground(Color.gray.darker().darker())) ;
 		//this.setBackground(Color.gray) ; //old version
       	lastSel = -1 ;
     }//end of constructor
@@ -63,9 +64,18 @@ import java.io.*;
 	}
 
 	private Dimension getCanvasSize(){
+		// the icons flow within the really visible width : the ScrollPane
+		// viewport (which follows the window size), not the whole frame.
 		int canvasWidth = getSize().width;
 		if(canvasWidth <= 0) canvasWidth = width;
-		if(frame != null && frame.getSize().width > canvasWidth) canvasWidth = frame.getSize().width;
+		int viewportHeight = -1;
+		Container parent = getParent();
+		if(parent instanceof ScrollPane){
+			Dimension viewport = ((ScrollPane)parent).getViewportSize();
+			if(viewport.width > 0) canvasWidth = viewport.width;
+			viewportHeight = viewport.height;
+		}
+		else if(frame != null && frame.getSize().width > canvasWidth) canvasWidth = frame.getSize().width;
 		if(canvasWidth < stampW) canvasWidth = stampW;
 
 		int columns = getColumnsForWidth(canvasWidth);
@@ -74,7 +84,9 @@ import java.io.*;
 			rows = ((vimages.size() - 1) / columns) + 1;
 
 		int canvasHeight = rows * stampH;
-		if(frame != null && frame.getSize().height > canvasHeight) canvasHeight = frame.getSize().height;
+		if(viewportHeight > canvasHeight) canvasHeight = viewportHeight;
+		else if(viewportHeight < 0 && frame != null && frame.getSize().height > canvasHeight)
+			canvasHeight = frame.getSize().height;
 		if(canvasHeight < height) canvasHeight = height;
 		return new Dimension(canvasWidth, canvasHeight);
 	}
@@ -100,24 +112,23 @@ import java.io.*;
 		repaint();
 	}
 
+	static final int[] STAMP_SIZES = { 200, 140, 100, 80 };// cycling order of changeSize()
+
 	public void changeSize(){
-		//eraseRect();
-		int temp = stampW ;
 		compteur++;
-		compteur = compteur%3 ;
-		switch( compteur ){
-			case 0 :
-				PixObject.setStampSize(140);
-				break ;
-			case 1	:
-				PixObject.setStampSize(100);
-				break ;
-			case 2  :
-				PixObject.setStampSize(80);
-				break ;
-		}
+		compteur = compteur%STAMP_SIZES.length ;
+		changeSize(STAMP_SIZES[compteur]);
+	 }// end of changeSize
+
+	/** Set the icon size directly (Preferences > Icon Size) and remember it. */
+	public void changeSize(int aSize){
+		PixObject.setStampSize(aSize);
 		stampH = PixObject.getStampSize() ;
 		stampW = stampH ;
+		// keep the popup cycling in step with the size just set
+		for(int i = 0; i < STAMP_SIZES.length; i++)
+			if(STAMP_SIZES[i] == stampH) compteur = i ;
+		Prefs.setStampSize(stampH);
 
 // POurquoi on n'instancie pas fwic dans le constructeur??? à essayer(le 23/01/98 )
 		if(fwic==null)fwic = new FindWhereInComp(this,stampW,stampH);
@@ -126,9 +137,7 @@ import java.io.*;
 
 			repaintAllPixObjects() ;
 			refresh();
-
-
-	 }// end of changeSize
+	 }
 
     /** This is the ActionListener method invoked by the popup menu items */
     public void actionPerformed(ActionEvent event) {
@@ -214,6 +223,7 @@ import java.io.*;
     	cb.show() ;
     	this.setBackground(cb.getColor());
     	frame.setBackground(cb.getColor()) ;
+    	Prefs.setBackground(cb.getColor()) ;
  		cb.dispose() ;
     	cb = null ;
     	for(int i =0 ; i < vimages.size() ; i++){
@@ -251,16 +261,18 @@ import java.io.*;
         else if (e.getID() == MouseEvent.MOUSE_PRESSED) {
 
      		if(fwic==null)fwic = new FindWhereInComp(this,stampW,stampH);
-     		if(lastSel != -1) {//  if there was an image selected before
-     			if(fwic == null) return ;
-     			 fwic.clearRect(lastSel); // clear the Rect
-     			lastSel = -1 ;//reset the rect
+     		int hit = fwic.findWhere(e.getX(),e.getY(),vimages.size()) ;
+     		clearSelectionRects() ;// erase the rects of the previous selection
+     		if(e.isShiftDown() && lastSel != -1 && hit != -1)
+     			selEnd = hit ;// shift-click : extend the range from the anchor
+     		else {
+     			lastSel = hit ;
+     			selEnd  = hit ;
      		}
-    		lastSel = fwic.findWhere(e.getX(),e.getY(),vimages.size()) ;
-     		if(lastSel != -1){
+     		if(hit != -1){
      			paintRect() ;// go and clear the textField
      		}
-     		if(e.getClickCount() > 1 && lastSel> -1){
+     		if(e.getClickCount() > 1 && hit > -1){
      				open() ;//doubleClick on an image.
      		}
      	}
@@ -284,15 +296,65 @@ import java.io.*;
 
 /**
 *	paintRect() invoked by paint() to know if it is necessary to draw a rect around
-*	the selected image
+*	the selected image(s)
 */
     public void paintRect(){
-    	if(lastSel <0 ) return ;
+    	if(lastSel <0 || lastSel >= vimages.size()) return ;
     	if(fwic == null) return ;
-    		PixObject po = (PixObject)vimages.elementAt(lastSel) ;
-    		frame.TF.setText(po.url.toString());
-    		fwic.drawRect(lastSel);
+    		int a = getSelectionStart() ;
+    		int b = getSelectionEnd() ;
+    		if(b > a)
+    			frame.TF.setText((b - a + 1) + " images selected") ;
+    		else{
+    			PixObject po = (PixObject)vimages.elementAt(lastSel) ;
+    			frame.TF.setText(po.url.toString());
+    		}
+    		for(int i = a ; i <= b && i < vimages.size() ; i++) fwic.drawRect(i);
     }
+
+	private void clearSelectionRects(){
+		if(fwic == null) return ;
+		int a = getSelectionStart() ;
+		if(a == -1) return ;
+		int b = getSelectionEnd() ;
+		for(int i = a ; i <= b && i < vimages.size() ; i++) fwic.clearRect(i);
+	}
+
+/////////////////////selection range (adjacent icons , shift-click)////////////////
+
+	/** First index of the selected range , -1 when nothing is selected. */
+	public int getSelectionStart(){
+		if(lastSel == -1) return -1 ;
+		if(selEnd  == -1) return lastSel ;
+		return Math.min(lastSel, selEnd) ;
+	}
+
+	/** Last index of the selected range , -1 when nothing is selected. */
+	public int getSelectionEnd(){
+		if(lastSel == -1) return -1 ;
+		if(selEnd  == -1) return lastSel ;
+		return Math.max(lastSel, selEnd) ;
+	}
+
+	/** The PixObjects of the selected range when SEVERAL adjacent icons are
+	*	selected (shift-click) , null otherwise. Used to extract a sub-stack
+	*	for the reconstructions. */
+	public Vector getSelectedImages(){
+		int a = getSelectionStart() ;
+		int b = getSelectionEnd() ;
+		if(a == -1 || b <= a) return null ;
+		Vector v = new Vector(b - a + 1) ;
+		for(int i = a ; i <= b && i < vimages.size() ; i++) v.addElement(vimages.elementAt(i)) ;
+		return v ;
+	}
+
+	/** Select a single image , keeping the range bookkeeping consistent.
+	*	(use this rather than assigning lastSel directly) */
+	public void select(int index){
+		clearSelectionRects() ;
+		lastSel = index ;
+		selEnd  = index ;
+	}
 
 
 /**
@@ -308,6 +370,7 @@ import java.io.*;
      	vimages.removeAllElements() ;
      	if(fwic != null)fwic = null;
      	lastSel = -1;
+     	selEnd  = -1;
 	refresh() ;
      	Tools.gc("Clear all") ;
      }//end of clearAll()
@@ -539,12 +602,15 @@ import java.io.*;
 
  ////////////////////////////////////////clear copy cut///////////////////////////////
     /** Clear  Invoked by popup menu
-    *	clears the selected image if any
+    *	clears the selected image(s) if any
     */
     void clear() {
-    	if (lastSel > -1){
-    		vimages.removeElementAt(lastSel);
-     	    lastSel-- ;
+    	int a = getSelectionStart() ;
+    	if (a > -1){
+    		int b = Math.min(getSelectionEnd(), vimages.size() - 1);
+    		for(int i = b ; i >= a ; i--) vimages.removeElementAt(i);
+     	    lastSel = a - 1 ;
+     	    selEnd  = lastSel ;
 	    refresh();
      	 return ;
      	 }

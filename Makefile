@@ -20,7 +20,7 @@ jar: compile
 	$(JAR) --create --file $(JAR_FILE) --main-class Main -C $(CLASSES_DIR) . -C $(SRC_DIR) Icon
 
 run: jar
-	$(JAVA) -jar $(JAR_FILE)
+	$(JAVA) -Xdock:name=EViewBox -jar $(JAR_FILE)
 
 smoke: compile
 

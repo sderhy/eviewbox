@@ -30,7 +30,14 @@ public class Multiplanar   {
 		}
 
 		public Multiplanar(PixCanvas canvas, int mode, int currentImage, boolean autoDraw){
-			this.vimages = canvas.vimages ;
+			// when several adjacent icons are selected (shift-click) the
+			// reconstruction works on that extracted sub-stack only
+			Vector selected = canvas.getSelectedImages() ;
+			if(selected != null && selected.size() >= 2){
+				this.vimages = selected ;
+				if(currentImage >= 0) currentImage -= canvas.getSelectionStart() ;
+			}
+			else this.vimages = canvas.vimages ;
 			this.mode = mode ;
 			this.dental = (mode == CURVED) ;
 			this.currentImage = currentImage ;

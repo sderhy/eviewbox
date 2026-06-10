@@ -38,8 +38,6 @@ public class MainLayout
 	"Copy","Copy" ,
 	"Past","Past" ,
 	"Clear Icons" , "clearAll" ,
-	"Change Background","bg",
-	"Change Size","size",
 	"Next Window","NextWindow" ,
 	"Previous Window",	"LastWindow" ,
 	"Slide Show" , "Diaporama" ,
@@ -74,7 +72,9 @@ public class MainLayout
 		f.setLayout(new BorderLayout()) ;
 		f.setBounds(10,10,440,440);
 		//f.setBackground(Color.lightGray);
-		f.setBackground(Color.gray.darker().darker());// same gray as the top panel
+		// saved preference wins over the default dark gray
+		Color background = Prefs.getBackground(Color.gray.darker().darker());
+		f.setBackground(background);
 //North panel : supPanel :
 		InsetPanel supPanel = new InsetPanel(Color.gray.darker().darker());
 		supPanel.setEtched(true);
@@ -83,7 +83,7 @@ public class MainLayout
 		TF.setBackground(Color.white);
 //Pixcanvas for displaying images
 		//canvas.setBackground(Color.lightGray);
-		canvas.setBackground(Color.gray.darker().darker());// same gray as the top panel
+		canvas.setBackground(background);
 		//canvas.addMouseMotionListener(al);
 		//canvas.addMouseListener(al) ;
 
@@ -176,10 +176,15 @@ public class MainLayout
 		edit.addSeparator();
 		edit.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_T)));
 		m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-		edit.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_B)));
-		m.addActionListener(al);m.setActionCommand(commands[++index]) ;
-		edit.add(m=new MenuItem(commands[++index], new MenuShortcut(KeyEvent.VK_K)));
-		m.addActionListener(al);m.setActionCommand(commands[++index]) ;
+
+		// On macOS Preferences lives in the application menu (see MainClass) ;
+		// elsewhere fall back to the usual Edit > Preferences... location.
+		if(!(Desktop.isDesktopSupported()
+				&& Desktop.getDesktop().isSupported(Desktop.Action.APP_PREFERENCES))){
+			edit.addSeparator();
+			edit.add(m = new MenuItem("Preferences...", new MenuShortcut(KeyEvent.VK_COMMA)));
+			m.addActionListener(al); m.setActionCommand("Preferences");
+		}
 
 		mbar.add(edit);
 //Menu Window

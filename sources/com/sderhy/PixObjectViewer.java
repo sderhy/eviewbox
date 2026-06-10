@@ -488,7 +488,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			}
 			setSize(windowSize);
 			offs = null;
-			sourceCanvas.lastSel = nextIndex ;
+			sourceCanvas.select(nextIndex) ;
 			sourceCanvas.frame.TF.setText(po.url.toString());
 			sourceCanvas.repaint();
 			if(po.isDicom) init() ;

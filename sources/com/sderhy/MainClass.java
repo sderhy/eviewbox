@@ -23,6 +23,7 @@ public class MainClass extends Frame  implements WindowListener{
 	public Vector vimages ;
 	private File lastOpenDirectory ;
 	private ExaminationPanel examPanel ;   // embedded DICOMDIR / examination tree (left side)
+	private PrefsDialog prefsDialog ;
 	public MainClass( String title){
 		super( title ) ;
 		TF = new TextField(80) ;
@@ -33,6 +34,16 @@ public class MainClass extends Frame  implements WindowListener{
 		int screenH = Toolkit.getDefaultToolkit().getScreenSize().height;
 	 	int screenW = Toolkit.getDefaultToolkit().getScreenSize().width;
 
+		// restore the saved icon size before any stamp is computed
+		PixObject.setStampSize(Prefs.getStampSize(PixObject.getStampSize()));
+		// macOS : Preferences lives in the application menu (EViewBox > Settings...)
+		if(Desktop.isDesktopSupported()
+				&& Desktop.getDesktop().isSupported(Desktop.Action.APP_PREFERENCES))
+			Desktop.getDesktop().setPreferencesHandler(new java.awt.desktop.PreferencesHandler(){
+				public void handlePreferences(java.awt.desktop.PreferencesEvent e){
+					doCommand("Preferences") ;
+				}
+			});
 		canvas = new PixCanvas(this,600,300);///CHANGER ICI  POUR OCCUPER PLUS  l4ecran
 		// setting the window  Layout
 		com.sderhy.MainLayout.setLayout(this);
@@ -61,6 +72,7 @@ public class MainClass extends Frame  implements WindowListener{
       	else if (command.equals("Past")) canvas.paste();
       	else if (command.equals("bg")) canvas.changeBackground() ;
       	else if (command.equals("size")) canvas.changeSize() ;
+      	else if (command.equals("Preferences")) showPreferences() ;
 		else if (command.equals("Close")) close() ;
 		else if (command.equals("OpenFolder")) OpenFolder();
 		else if (command.equals("Quit")) close();
@@ -88,6 +100,13 @@ public class MainClass extends Frame  implements WindowListener{
 	 public void close(){
     	this.dispose();
     }
+
+	public void showPreferences(){
+		if(prefsDialog == null || !prefsDialog.isDisplayable())
+			prefsDialog = new PrefsDialog(this) ;
+		prefsDialog.show() ;
+		prefsDialog.toFront() ;
+	}
 
 	/** Show an examination tree as a panel on the left of the main window.
 	*	Replaces any previously opened examination panel. */
