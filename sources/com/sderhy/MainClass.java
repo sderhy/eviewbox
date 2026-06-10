@@ -36,14 +36,23 @@ public class MainClass extends Frame  implements WindowListener{
 
 		// restore the saved icon size before any stamp is computed
 		PixObject.setStampSize(Prefs.getStampSize(PixObject.getStampSize()));
-		// macOS : Preferences lives in the application menu (EViewBox > Settings...)
-		if(Desktop.isDesktopSupported()
-				&& Desktop.getDesktop().isSupported(Desktop.Action.APP_PREFERENCES))
-			Desktop.getDesktop().setPreferencesHandler(new java.awt.desktop.PreferencesHandler(){
-				public void handlePreferences(java.awt.desktop.PreferencesEvent e){
-					doCommand("Preferences") ;
-				}
-			});
+		// macOS : Preferences and About live in the application menu
+		// (EViewBox > Settings... , EViewBox > About)
+		if(Desktop.isDesktopSupported()){
+			Desktop desktop = Desktop.getDesktop();
+			if(desktop.isSupported(Desktop.Action.APP_PREFERENCES))
+				desktop.setPreferencesHandler(new java.awt.desktop.PreferencesHandler(){
+					public void handlePreferences(java.awt.desktop.PreferencesEvent e){
+						doCommand("Preferences") ;
+					}
+				});
+			if(desktop.isSupported(Desktop.Action.APP_ABOUT))
+				desktop.setAboutHandler(new java.awt.desktop.AboutHandler(){
+					public void handleAbout(java.awt.desktop.AboutEvent e){
+						doCommand("About") ;
+					}
+				});
+		}
 		canvas = new PixCanvas(this,600,300);///CHANGER ICI  POUR OCCUPER PLUS  l4ecran
 		// setting the window  Layout
 		com.sderhy.MainLayout.setLayout(this);
@@ -136,8 +145,7 @@ public class MainClass extends Frame  implements WindowListener{
 	}
 
 	public void about(){
-		AlertBox Ab = new AlertBox(this, "Copyright Serge Derhy  1998" ,
-						"An Application from Serge Derhy, sderhy@imaginet.fr") ;
+		new AboutBox(this).show() ;
 	}
 
  public void OpenFolder(){
