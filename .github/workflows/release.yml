@@ -1,0 +1,92 @@
+# Builds the distributable packages (macOS .dmg, Windows .msi, Linux .deb)
+# with jpackage on each platform's runner.
+# - on a version tag (v1.0, v1.2.3...) : packages are attached to the GitHub release
+# - manual run (workflow_dispatch) : packages are available as workflow artifacts
+name: Release packages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Resolve version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          case "$VERSION" in
+            [0-9]*.[0-9]*) ;;          # looks like x.y -> keep it
+            *) VERSION=1.0 ;;          # manual run from a branch
+          esac
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build jar
+        run: |
+          mkdir -p build/classes
+          javac -d build/classes $(find sources -name '*.java' ! -name 'e_ViewBox_Applet.java')
+          jar --create --file build/eviewbox.jar --main-class Main -C build/classes . -C sources Icon
+
+      - name: Generate icons
+        run: |
+          mkdir -p build/icontool packaging/EViewBox.iconset
+          javac -d build/icontool packaging/MakeIcon.java
+          java -cp build/icontool MakeIcon packaging/EViewBox.iconset
+
+      - name: Stage jpackage input
+        run: |
+          mkdir -p build/package-input build/dist
+          cp build/eviewbox.jar build/package-input/
+
+      - name: Package macOS dmg
+        if: runner.os == 'macOS'
+        run: |
+          iconutil --convert icns --output packaging/EViewBox.icns packaging/EViewBox.iconset
+          jpackage --type dmg --name EViewBox --app-version "$APP_VERSION" \
+            --input build/package-input --main-jar eviewbox.jar \
+            --icon packaging/EViewBox.icns --dest build/dist
+
+      - name: Package Windows msi
+        if: runner.os == 'Windows'
+        run: |
+          jpackage --type msi --name EViewBox --app-version "$APP_VERSION" \
+            --input build/package-input --main-jar eviewbox.jar \
+            --icon packaging/EViewBox.ico --dest build/dist \
+            --win-menu --win-shortcut --win-dir-chooser
+
+      - name: Package Linux deb
+        if: runner.os == 'Linux'
+        run: |
+          jpackage --type deb --name eviewbox --app-version "$APP_VERSION" \
+            --input build/package-input --main-jar eviewbox.jar \
+            --icon packaging/EViewBox.png --dest build/dist \
+            --linux-shortcut
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EViewBox-${{ runner.os }}
+          path: build/dist/*
+
+      - name: Attach packages to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/dist/*
