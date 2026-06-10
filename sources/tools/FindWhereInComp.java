@@ -71,28 +71,29 @@ public class FindWhereInComp{
     	}
   */  	
   
+	static final Color SELECTION = new Color(64, 156, 255) ;// accent blue
+
     public void drawRect(int where){
-    	update();
-    	if (where == -1) return;
-    	int xRect = (where % numCol)* stampW ;
-    	int yRect = (where / numCol);
-    	yRect =  yRect * stampH ;   	
-    	Graphics g = c.getGraphics() ;
-    	g.drawRect(xRect,yRect, stampW,stampH); 
-	}    
+    	paintRect(where, SELECTION);
+	}
 	public void drawRect(){
 		drawRect(lastSelection);
 	}
 	public void clearRect(int where){
+    	paintRect(where, c.getBackground());
+	}
+	/** 2 pixel thick selection frame , drawn inside the icon cell. */
+	private void paintRect(int where, Color color){
     	update();
     	if (where == -1) return;
     	int xRect = (where % numCol)* stampW ;
     	int yRect = (where / numCol);
-    	yRect =  yRect * stampH ;   	
+    	yRect =  yRect * stampH ;
     	Graphics g = c.getGraphics() ;
-    	g.setColor(c.getBackground()) ;
-    	g.drawRect(xRect,yRect, stampW,stampH); 
-	}    
+    	g.setColor(color) ;
+    	g.drawRect(xRect+1, yRect+1, stampW-3, stampH-3);
+    	g.drawRect(xRect+2, yRect+2, stampW-5, stampH-5);
+	}
 		
 		
 	public int getLastSelection(){

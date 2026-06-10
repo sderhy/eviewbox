@@ -86,42 +86,44 @@ java.lang.Cloneable/* Transferable , ClipboardOwner */ {
 
 	}
 	public void changeBackground(){
-		Graphics g = scaled.getGraphics() ;
-		g.setColor(c.getBackground());
-
-		g.fillRect(0,0,dx1,stamp);
-		g.fillRect(0,0,stamp,dy1) ;
-		g.fillRect(dx2,0,stamp,stamp);
-		g.fillRect(0,dy2,stamp,stamp);
-		new Rectang(stamp).paintInside(g);
-
+		scaled = getStamp() ;// regenerate : shadow and frame depend on the background
 	}
 
 
 
 	public Image getStamp(){
-		dx1 = 0 ;  dy1 =0 ; int hs = 0;int ws =0;
-		dx2 = 0 ;  dy2 =0 ;
-		if(w >=h ){
-			 hs = stamp * h/w ;
-			 ws =stamp;
-			 dy1 = (stamp - hs)/2 ;
-			 dy2 =  (stamp + hs)/2 ;
-			dx2 = stamp ;
-		}
-		else if( h > w ){
-			ws = stamp * w/h ;
-			hs = stamp ;
-			dx1 = (stamp- ws )/2 ;
-			dx2 = (stamp +ws )/2 ;
-			dy2 = stamp ;
-		}
-		Image  scaled = c.createImage(stamp,stamp) ;
-		Graphics g = scaled.getGraphics() ;
-		g.drawImage(image, dx1,dy1, dx2,dy2,0,0,w,h,c);
-		g.setColor(c.getBackground());
-		new Rectang(stamp).paintInside(g);
-	return scaled  ;
+		// margin lets the icons breathe and leaves room for the selection frame
+		int margin = Math.max(4, stamp/24) ;
+		int avail = stamp - 2*margin ;
+		int ws , hs ;
+		if(w >= h){ ws = avail ; hs = Math.max(1, avail * h / Math.max(1,w)) ; }
+		else      { hs = avail ; ws = Math.max(1, avail * w / Math.max(1,h)) ; }
+		dx1 = (stamp - ws)/2 ;
+		dy1 = (stamp - hs)/2 ;
+		dx2 = dx1 + ws ;
+		dy2 = dy1 + hs ;
+
+		BufferedImage out = new BufferedImage(stamp, stamp, BufferedImage.TYPE_INT_RGB) ;
+		Graphics2D g = out.createGraphics() ;
+		Color bg = (c != null) ? c.getBackground() : Color.gray.darker().darker() ;
+		g.setColor(bg) ;
+		g.fillRect(0, 0, stamp, stamp) ;
+	// soft drop shadow under the image
+		g.setColor(new Color(0, 0, 0, 90)) ;
+		g.fillRect(dx1 + 3, dy1 + 3, ws, hs) ;
+		g.setColor(new Color(0, 0, 0, 45)) ;
+		g.fillRect(dx1 + 4, dy1 + 4, ws, hs) ;
+	// smooth (bilinear) scaling instead of nearest neighbour
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+					RenderingHints.VALUE_INTERPOLATION_BILINEAR) ;
+		g.setRenderingHint(RenderingHints.KEY_RENDERING,
+					RenderingHints.VALUE_RENDER_QUALITY) ;
+		g.drawImage(image, dx1,dy1, dx2,dy2, 0,0,w,h, c);
+	// thin light frame around the image
+		g.setColor(new Color(255, 255, 255, 70)) ;
+		g.drawRect(dx1 - 1, dy1 - 1, ws + 1, hs + 1) ;
+		g.dispose() ;
+	return out ;
 	}//end of getStamp()
 
 
