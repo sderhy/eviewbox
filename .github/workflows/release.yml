@@ -42,7 +42,7 @@ jobs:
       - name: Build jar
         run: |
           mkdir -p build/classes
-          javac -d build/classes $(find sources -name '*.java' ! -name 'e_ViewBox_Applet.java')
+          javac -encoding UTF-8 -d build/classes $(find sources -name '*.java' ! -name 'e_ViewBox_Applet.java')
           jar --create --file build/eviewbox.jar --main-class Main -C build/classes . -C sources Icon
 
       - name: Generate icons
