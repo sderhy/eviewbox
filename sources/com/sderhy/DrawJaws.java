@@ -126,16 +126,30 @@ public  class DrawJaws extends Mpr implements KeyListener {
 		cachedCx = cx ; cachedCy = cy ;
 	}
 
-	// Bilinear sample of a slice's pixels at a sub-pixel (fx, fy) position.
+	/**
+	*	Bilinear sample at a sub-pixel (fx,fy), in fixed-point integer arithmetic :
+	*	no Math.round / Math.floor, no per-channel method calls. The four corner
+	*	weights are 0..65536 and sum to 65536, so a single >>>16 averages them.
+	*/
 	private int sampleBilinear(int[] src, float fx, float fy){
-		if(fx < 0) fx = 0 ; if(fx > w - 1) fx = w - 1 ;
-		if(fy < 0) fy = 0 ; if(fy > h - 1) fy = h - 1 ;
-		int x0 = (int)Math.floor(fx), y0 = (int)Math.floor(fy) ;
-		int x1 = Math.min(x0 + 1, w - 1), y1 = Math.min(y0 + 1, h - 1) ;
-		float tx = fx - x0, ty = fy - y0 ;
-		int top = interpolatePixel(src[y0 * w + x0], src[y0 * w + x1], tx) ;
-		int bot = interpolatePixel(src[y1 * w + x0], src[y1 * w + x1], tx) ;
-		return interpolatePixel(top, bot, ty) ;
+		if(fx < 0) fx = 0 ; else if(fx > w - 1) fx = w - 1 ;
+		if(fy < 0) fy = 0 ; else if(fy > h - 1) fy = h - 1 ;
+		int x0 = (int)fx, y0 = (int)fy ;
+		int x1 = (x0 < w - 1) ? x0 + 1 : x0 ;
+		int y1 = (y0 < h - 1) ? y0 + 1 : y0 ;
+		int tx = (int)((fx - x0) * 256f + 0.5f), ty = (int)((fy - y0) * 256f + 0.5f) ;
+		int itx = 256 - tx, ity = 256 - ty ;
+		int o0 = y0 * w, o1 = y1 * w ;
+		int p00 = src[o0 + x0], p10 = src[o0 + x1] ;
+		int p01 = src[o1 + x0], p11 = src[o1 + x1] ;
+		int w00 = itx * ity, w10 = tx * ity, w01 = itx * ty, w11 = tx * ty ;
+		int r = ((p00 >>> 16 & 0xff) * w00 + (p10 >>> 16 & 0xff) * w10
+		       + (p01 >>> 16 & 0xff) * w01 + (p11 >>> 16 & 0xff) * w11) >>> 16 ;
+		int g = ((p00 >>> 8 & 0xff) * w00 + (p10 >>> 8 & 0xff) * w10
+		       + (p01 >>> 8 & 0xff) * w01 + (p11 >>> 8 & 0xff) * w11) >>> 16 ;
+		int b = ((p00 & 0xff) * w00 + (p10 & 0xff) * w10
+		       + (p01 & 0xff) * w01 + (p11 & 0xff) * w11) >>> 16 ;
+		return 0xff000000 | (r << 16) | (g << 8) | b ;
 	}
 
 		private void interpolateRow(int[] current, int[] next, float ratio, int[] destination, int offset, int width){
