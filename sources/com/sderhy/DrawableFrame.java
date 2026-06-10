@@ -29,6 +29,8 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 // direction angle cutPhi. When set, it replaces the axis-aligned row/column.
 	 private boolean oblique = false ;
 	 private double cutCX, cutCY, cutPhi ;
+	 private boolean previewMode = false ;   // low-res live preview while dragging
+	 private static final int PREVIEW_SLICES = 200 ;  // slices sampled in preview mode
 	Panel supP,infP,leftP,rightP ;
 
 	public MenuBar mb ;
@@ -160,9 +162,13 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 		}
 
 	/** Set the active crosshair line (image coords + direction angle) and rebuild. */
-	public void setCut(double cx, double cy, double phi){
+	public void setCut(double cx, double cy, double phi){ setCut(cx, cy, phi, false) ; }
+
+	/** preview = true builds a fast, lower-slice-count image for live dragging. */
+	public void setCut(double cx, double cy, double phi, boolean preview){
 		oblique = true ;
 		cutCX = cx ; cutCY = cy ; cutPhi = phi ;
+		previewMode = preview ;
 		zUpdate() ;
 	}
 
@@ -174,46 +180,111 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	*/
 	private Image zconstrucOblique(){
 		ensurePixelCache() ;
+		// In preview mode, sample only a subset of slices (≈ PREVIEW_SLICES) so the
+		// live drag stays real-time ; the full stack is used on release.
+		int step = previewMode ? Math.max(1, (numberOfImages + PREVIEW_SLICES - 1) / PREVIEW_SLICES) : 1 ;
+		int ns = Math.max(1, (numberOfImages + step - 1) / step) ;
+		int[] sliceIdx = new int[ns] ;
+		for(int m = 0 ; m < ns ; m++) sliceIdx[m] = Math.min(m * step, numberOfImages - 1) ;
+		sliceIdx[ns - 1] = numberOfImages - 1 ;   // always include the last slice
+
 		double dx = Math.cos(cutPhi), dy = Math.sin(cutPhi) ;
-		double[] seg = LineClip.segment(cutCX, cutCY, dx, dy, w, h) ;
-		if(seg == null){ return zImg ; }
-		double x0 = seg[0], y0 = seg[1], x1 = seg[2], y1 = seg[3] ;
-		int owidth = Math.max(1, (int)Math.round(Math.hypot(x1 - x0, y1 - y0)) + 1) ;
+		final double EPS = 1e-6 ;
+		int owidth ;
+		int[][] rows ;
+
+		if(Math.abs(dy) < EPS){
+			// FAST PATH — horizontal line : copy the exact image row (no in-plane
+			// interpolation needed). This is the old frontal speed (System.arraycopy).
+			int yy = clampInt((int)Math.round(cutCY), 0, h - 1) ;
+			owidth = w ;
+			rows = new int[ns][] ;
+			for(int m = 0 ; m < ns ; m++){
+				int[] src = cachedPixels[sliceIdx[m]] ;
+				int[] dst = new int[w] ;
+				if(src != null) System.arraycopy(src, yy * w, dst, 0, w) ;
+				rows[m] = dst ;
+			}
+		} else if(Math.abs(dx) < EPS){
+			// FAST PATH — vertical line : read the exact image column (old sagittal).
+			int xx = clampInt((int)Math.round(cutCX), 0, w - 1) ;
+			owidth = h ;
+			rows = new int[ns][] ;
+			for(int m = 0 ; m < ns ; m++){
+				int[] src = cachedPixels[sliceIdx[m]] ;
+				int[] dst = new int[h] ;
+				if(src != null) for(int j = 0 ; j < h ; j++) dst[j] = src[j * w + xx] ;
+				rows[m] = dst ;
+			}
+		} else {
+			// OBLIQUE — sample bilinearly along the chord of the image.
+			double[] seg = LineClip.segment(cutCX, cutCY, dx, dy, w, h) ;
+			if(seg == null) return zImg ;
+			double x0 = seg[0], y0 = seg[1], x1 = seg[2], y1 = seg[3] ;
+			double ddx = x1 - x0, ddy = y1 - y0 ;
+			owidth = Math.max(1, (int)Math.round(Math.hypot(ddx, ddy)) + 1) ;
+			rows = new int[ns][owidth] ;
+			double stepT = (owidth == 1) ? 0 : 1.0 / (owidth - 1) ;
+			for(int m = 0 ; m < ns ; m++){
+				int[] src = cachedPixels[sliceIdx[m]] ;
+				if(src == null) continue ;
+				int[] dst = rows[m] ;
+				for(int k = 0 ; k < owidth ; k++){
+					double t = k * stepT ;
+					dst[k] = sampleBilinear(src, (float)(x0 + t * ddx), (float)(y0 + t * ddy)) ;
+				}
+			}
+		}
 		zw = owidth ;
-		int[][] rows = new int[numberOfImages][owidth] ;
-		for(int i = 0 ; i < numberOfImages ; i++){
-			int[] src = cachedPixels[i] ;
-			if(src == null) continue ;
-			int[] dst = rows[i] ;
-			for(int k = 0 ; k < owidth ; k++){
-				double t = (owidth == 1) ? 0 : (double)k / (owidth - 1) ;
-				dst[k] = sampleBilinear(src, (float)(x0 + t * (x1 - x0)), (float)(y0 + t * (y1 - y0))) ;
-			}
+
+		// Cap the output height : a reconstruction taller than the screen is
+		// pointless and just costs memory / time. The slice axis is resampled into
+		// outH rows (each maps to a fractional position among the sampled slices).
+		int fullH = thickness * numberOfImages ;
+		int outH = Math.max(1, Math.min(fullH, maxDisplayHeight())) ;
+		int[] zpixels = new int[outH * owidth] ;
+		for(int r = 0 ; r < outH ; r++){
+			double p = (outH == 1) ? 0 : (double)r * (ns - 1) / (outH - 1) ;
+			int m0 = (int)p ;
+			int m1 = Math.min(m0 + 1, ns - 1) ;
+			float ratio = (float)(p - m0) ;
+			interpolateRow(rows[m0], rows[m1], ratio, zpixels, r * owidth, owidth) ;
 		}
-		int[] zpixels = new int[zh * owidth] ;
-		int offset = 0 ;
-		for(int i = 0 ; i < numberOfImages ; i++){
-			int[] current = rows[i] ;
-			int[] next = (i + 1 < numberOfImages) ? rows[i + 1] : current ;
-			for(int j = 0 ; j < thickness ; j++){
-				float ratio = (thickness <= 1) ? 0f : (float)j / (float)thickness ;
-				interpolateRow(current, next, ratio, zpixels, offset, owidth) ;
-				offset += owidth ;
-			}
-		}
-		return createImage(new MemoryImageSource(owidth, zh, zpixels, 0, owidth)) ;
+		return createImage(new MemoryImageSource(owidth, outH, zpixels, 0, owidth)) ;
 	}
 
-	// Bilinear sample of a slice's pixels at a sub-pixel (fx, fy) position.
+	// Upper bound on the reconstructed image height (the screen height).
+	private int maxDisplayHeight(){
+		int screenH = Toolkit.getDefaultToolkit().getScreenSize().height ;
+		return Math.max(256, screenH) ;
+	}
+
+	private static int clampInt(int v, int lo, int hi){ return v < lo ? lo : (v > hi ? hi : v) ; }
+
+	/**
+	*	Bilinear sample at a sub-pixel (fx,fy), in fixed-point integer arithmetic :
+	*	no Math.round / Math.floor, no per-channel method calls. The four corner
+	*	weights are 0..65536 and sum to 65536, so a single >>>16 averages them.
+	*/
 	private int sampleBilinear(int[] src, float fx, float fy){
-		if(fx < 0) fx = 0 ; if(fx > w - 1) fx = w - 1 ;
-		if(fy < 0) fy = 0 ; if(fy > h - 1) fy = h - 1 ;
-		int x0 = (int)Math.floor(fx), y0 = (int)Math.floor(fy) ;
-		int x1 = Math.min(x0 + 1, w - 1), y1 = Math.min(y0 + 1, h - 1) ;
-		float tx = fx - x0, ty = fy - y0 ;
-		int top = interpolatePixel(src[y0 * w + x0], src[y0 * w + x1], tx) ;
-		int bot = interpolatePixel(src[y1 * w + x0], src[y1 * w + x1], tx) ;
-		return interpolatePixel(top, bot, ty) ;
+		if(fx < 0) fx = 0 ; else if(fx > w - 1) fx = w - 1 ;
+		if(fy < 0) fy = 0 ; else if(fy > h - 1) fy = h - 1 ;
+		int x0 = (int)fx, y0 = (int)fy ;
+		int x1 = (x0 < w - 1) ? x0 + 1 : x0 ;
+		int y1 = (y0 < h - 1) ? y0 + 1 : y0 ;
+		int tx = (int)((fx - x0) * 256f + 0.5f), ty = (int)((fy - y0) * 256f + 0.5f) ;
+		int itx = 256 - tx, ity = 256 - ty ;
+		int o0 = y0 * w, o1 = y1 * w ;
+		int p00 = src[o0 + x0], p10 = src[o0 + x1] ;
+		int p01 = src[o1 + x0], p11 = src[o1 + x1] ;
+		int w00 = itx * ity, w10 = tx * ity, w01 = itx * ty, w11 = tx * ty ;
+		int r = ((p00 >>> 16 & 0xff) * w00 + (p10 >>> 16 & 0xff) * w10
+		       + (p01 >>> 16 & 0xff) * w01 + (p11 >>> 16 & 0xff) * w11) >>> 16 ;
+		int g = ((p00 >>> 8 & 0xff) * w00 + (p10 >>> 8 & 0xff) * w10
+		       + (p01 >>> 8 & 0xff) * w01 + (p11 >>> 8 & 0xff) * w11) >>> 16 ;
+		int b = ((p00 & 0xff) * w00 + (p10 & 0xff) * w10
+		       + (p01 & 0xff) * w01 + (p11 & 0xff) * w11) >>> 16 ;
+		return 0xff000000 | (r << 16) | (g << 8) | b ;
 	}
 
 	/**

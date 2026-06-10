@@ -28,6 +28,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 	private double crAngle = 0 ;           // orientation of line 0 (radians)
 	private int activeLine = 0 ;           // which orthogonal line is reconstructed : 0 or 1
 	private int dragMode = 0 ;             // 0 none, 1 translate, 2 rotate
+	private boolean crossGesture = false ; // a crosshair press is in progress
 	private static final int HANDLE_PX = 12 ;   // screen tolerance for centre / endpoints
 
 		public PixObjectViewer ( PixObject po){
@@ -244,7 +245,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			recon.setOnDispose(new Runnable(){ public void run(){ clearCut() ; } }) ;
 			crossMode = true ;
 			crCX = w / 2.0 ; crCY = h / 2.0 ; crAngle = 0 ; activeLine = 0 ;
-			pushCut() ;
+			pushCut(false) ;
 			repaint() ;
 		}
 
@@ -264,9 +265,21 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		private double activePhi(){ return crAngle + activeLine * (Math.PI / 2) ; }
 
 		// Push the active line to the engine and rebuild the reconstruction.
-		private void pushCut(){
-			if(recon != null) recon.setCut(crCX, crCY, activePhi()) ;
+		// preview = true asks for a fast, low-slice-count image (live dragging).
+		private void pushCut(boolean preview){
+			if(recon != null) recon.setCut(crCX, crCY, activePhi(), preview) ;
 			repaint() ;
+		}
+
+		// Throttle the live preview so a fast drag doesn't queue dozens of rebuilds.
+		private long lastPreviewMs = 0 ;
+		private static final int PREVIEW_INTERVAL_MS = 50 ;
+		private void schedulePreview(){
+			long now = System.currentTimeMillis() ;
+			if(now - lastPreviewMs >= PREVIEW_INTERVAL_MS){
+				lastPreviewMs = now ;
+				pushCut(true) ;
+			}
 		}
 
 		// --- crosshair geometry, in image coordinates -------------------------
@@ -286,6 +299,7 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 		// activate that line), or a line body (just activate it).
 		private void pressCross(int sx, int sy){
 			if(destw <= 0 || desth <= 0) return ;
+			crossGesture = true ;
 			// Centre handle ?
 			if(dist(sx, sy, imgToScreenX(crCX), imgToScreenY(crCY)) <= HANDLE_PX){
 				dragMode = 1 ; return ;
@@ -304,25 +318,30 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			if(bestLine >= 0){ activeLine = bestLine ; dragMode = 2 ; rotateTo(sx, sy) ; return ; }
 			// Otherwise : a click near a line body selects it as active.
 			int pick = nearestLine(sx, sy) ;
-			if(pick >= 0 && pick != activeLine){ activeLine = pick ; pushCut() ; }
+			if(pick >= 0) activeLine = pick ;
 			dragMode = 0 ;
+			repaint() ;
 		}
 
+		// During a drag the crosshair follows in real time and a throttled low-res
+		// preview is rebuilt ; the full-quality image is produced on release.
 		private void dragCross(int sx, int sy){
 			if(dragMode == 1){
 				crCX = clamp(screenToImgX(sx), 0, w - 1) ;
 				crCY = clamp(screenToImgY(sy), 0, h - 1) ;
-				pushCut() ;
 			} else if(dragMode == 2){
-				rotateTo(sx, sy) ;
-			}
+				double a = Math.atan2(screenToImgY(sy) - crCY, screenToImgX(sx) - crCX) ;
+				crAngle = a - activeLine * (Math.PI / 2) ;
+			} else return ;
+			repaint() ;
+			schedulePreview() ;
 		}
 
-		// Rotate so the active line points at the cursor.
+		// Rotate so the active line points at the cursor (overlay only, on grab).
 		private void rotateTo(int sx, int sy){
 			double a = Math.atan2(screenToImgY(sy) - crCY, screenToImgX(sx) - crCX) ;
 			crAngle = a - activeLine * (Math.PI / 2) ;
-			pushCut() ;
+			repaint() ;
 		}
 
 		// Index of the line whose body is closest to (sx,sy), or -1 if none within tol.
@@ -515,8 +534,11 @@ public class PixObjectViewer extends ImageViewer implements KeyListener {
 			// (right-click still pops the menu).
 			if(crossMode && e.getID() == MouseEvent.MOUSE_PRESSED && !e.isPopupTrigger())
 				pressCross(e.getX(), e.getY()) ;
-			if(crossMode && e.getID() == MouseEvent.MOUSE_RELEASED)
+			if(crossMode && e.getID() == MouseEvent.MOUSE_RELEASED && crossGesture){
+				crossGesture = false ;
 				dragMode = 0 ;
+				pushCut(false) ;   // full-quality rebuild at the end of the gesture
+			}
 			super.processMouseEvent(e) ;
 		}
 
