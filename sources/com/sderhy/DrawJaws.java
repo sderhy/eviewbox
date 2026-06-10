@@ -77,19 +77,35 @@ public  class DrawJaws extends Mpr implements KeyListener {
 		sampleAlongCurve(cx, cy) ;    // (re)samples only when the curve changed
 		int n = vimages.size() ;
 
-		// Stack the sampled rows, interpolating between slices by thickness.
-		int[] zpixels = new int[zh * zw] ;
-		int offset = 0 ;
-		for(int i = 0 ; i < n ; i++){
-			int[] current = sampledRows[i] ;
-			int[] next = (i + 1 < n) ? sampledRows[i + 1] : current ;
-			for(int j = 0 ; j < thickness ; j++){
-				float ratio = (thickness <= 1) ? 0f : (float)j / (float)thickness ;
-				interpolateRow(current, next, ratio, zpixels, offset, zw) ;
-				offset += zw ;
-			}//endfor j
-		}//endfor i
-		Image newImg = createImage(new MemoryImageSource(zw, zh, zpixels, 0, zw)) ;
+		// Stack the sampled rows along the slice axis, resampled by PHYSICAL
+		// position (SliceLocation) so non-uniform / overlapping spacing renders
+		// at the right height. Falls back to uniform spacing when the stack has
+		// no usable positions.
+		SliceGeometry geo = parent.getSliceGeometry() ;
+		int[] order ;
+		double[] pos ;
+		int fullH ;
+		if(geo != null){
+			order = geo.order ;
+			pos = geo.pos ;
+			fullH = (int)Math.round(geo.spanPx() * zoomZ) + 1 ;
+		} else {
+			order = new int[n] ;
+			pos = new double[n] ;
+			for(int i = 0 ; i < n ; i++){ order[i] = i ; pos[i] = i ; }
+			fullH = thickness * n ;
+		}
+		int outH = Math.max(1, Math.min(fullH, maxDisplayHeight())) ;
+		int[] k0 = new int[outH] ;
+		float[] frac = new float[outH] ;
+		SliceGeometry.resampleMap(pos, n, outH, k0, frac) ;
+		int[] zpixels = new int[outH * zw] ;
+		for(int r = 0 ; r < outH ; r++){
+			int[] current = sampledRows[order[k0[r]]] ;
+			int[] next = sampledRows[order[Math.min(k0[r] + 1, n - 1)]] ;
+			interpolateRow(current, next, frac[r], zpixels, r * zw, zw) ;
+		}
+		Image newImg = createImage(new MemoryImageSource(zw, outH, zpixels, 0, zw)) ;
 		zpixels = null ;
 		// Release the previous result's native buffer before showing the new one.
 		if(prevResult != null) prevResult.flush() ;

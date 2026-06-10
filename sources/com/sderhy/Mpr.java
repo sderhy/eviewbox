@@ -16,6 +16,9 @@ public abstract class Mpr extends Frame implements WindowListener, ActionListene
 			int numberOfImages ;
 			int  currentImage ;
 			int  thickness  = 6 ; //2 mm in pixels ( 28 pixels /cm at  72 dpi )
+			// Vertical zoom on top of the PHYSICAL through-plane scale (used when
+			// the stack has per-slice positions ; 1.0 = geometrically correct).
+			double zoomZ = 1.0 ;
 			int  w, h ;
 			int zh ;
 			ZCanvas zCanvas ;
@@ -94,8 +97,21 @@ public abstract class Mpr extends Frame implements WindowListener, ActionListene
 		}
 
 		public void setThickness(int mm){
-			this.thickness = mm * 2 ;
-			zh = thickness * numberOfImages ;
+			SliceGeometry geo = parent.getSliceGeometry() ;
+			if(geo != null){
+				// With real positions the menu is a vertical zoom : render as if
+				// the mean inter-slice spacing were mm millimeters.
+				zoomZ = mm / geo.meanSpacingMm ;
+			} else {
+				this.thickness = mm * 2 ;
+				zh = thickness * numberOfImages ;
+			}
+		}
+
+		// Upper bound on the reconstructed image height (the screen height).
+		protected int maxDisplayHeight(){
+			int screenH = Toolkit.getDefaultToolkit().getScreenSize().height ;
+			return Math.max(256, screenH) ;
 		}
 		//ActionListener :
 		public void actionPerformed(ActionEvent e){

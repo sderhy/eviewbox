@@ -17,6 +17,9 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 int numberOfImages ;
 	 int  currentImage ;
 	 int  thickness  =  14 ; // in pixels ( 28 pixels /cm at  72 dpi )
+	 // Vertical zoom on top of the PHYSICAL through-plane scale (used when the
+	 // stack has per-slice positions ; 1.0 = geometrically correct).
+	 double zoomZ = 1.0 ;
 	 int  w, h ;
 	 int zw ;
 	 int zh ;
@@ -128,38 +131,16 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 
 
   public Image zconstruc() {
-		if(oblique) return zconstrucOblique() ;
-		// taille de l'image a reconstruire :
-			ensurePixelCache();
-			zw = getReconstructionWidth();
-			int[] zpixels  = new int[zh * zw] ;
-			int[][] rows = new int[numberOfImages][zw] ;
-			int yy = Math.max(0, Math.min(h - 1, dc.y1)) ;   // frontal  : picked row
-			int xx = Math.max(0, Math.min(w - 1, dc.x1)) ;   // sagittal : picked column
-			for(int i =0 ; i < numberOfImages ; i++){
-				int[] src = cachedPixels[i];
-				if(src == null) continue ;
-				if(isSagittal()){
-					int[] dst = rows[i] ;
-					for(int j = 0 ; j < h ; j++) dst[j] = src[j * w + xx] ;
-				} else {
-					System.arraycopy(src, yy * w, rows[i], 0, w) ;
-				}
-			}
-
-			int offset = 0 ;
-			for(int i =0 ; i < numberOfImages ; i++){
-				int[] current = rows[i];
-				int[] next = (i + 1 < numberOfImages) ? rows[i + 1] : current;
-				for(int j = 0 ; j< thickness ; j++)	{
-					float ratio = (thickness <= 1) ? 0f : (float)j / (float)thickness;
-					interpolateRow(current, next, ratio, zpixels, offset, zw);
-					offset += zw ;
-				}//endfor j
-			}//endfor i
-			return  createImage(new MemoryImageSource(zw,zh,zpixels,0,zw));
-
+		if(!oblique){
+			// Route the axis-aligned cut through the oblique engine : its
+			// horizontal / vertical fast paths read the exact row / column, and
+			// the slice axis is resampled by physical position in ONE place.
+			cutCY = Math.max(0, Math.min(h - 1, dc.y1)) ;   // frontal  : picked row
+			cutCX = Math.max(0, Math.min(w - 1, dc.x1)) ;   // sagittal : picked column
+			cutPhi = isSagittal() ? Math.PI / 2 : 0 ;
 		}
+		return zconstrucOblique() ;
+	}
 
 	/** Set the active crosshair line (image coords + direction angle) and rebuild. */
 	public void setCut(double cx, double cy, double phi){ setCut(cx, cy, phi, false) ; }
@@ -180,13 +161,22 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	*/
 	private Image zconstrucOblique(){
 		ensurePixelCache() ;
+		// Per-slice physical positions (sorted) when available : the slice axis
+		// is then resampled by position, so non-uniform / overlapping spacing
+		// renders at the right height. Null = legacy uniform spacing.
+		SliceGeometry geo = parent.getSliceGeometry() ;
 		// In preview mode, sample only a subset of slices (≈ PREVIEW_SLICES) so the
 		// live drag stays real-time ; the full stack is used on release.
 		int step = previewMode ? Math.max(1, (numberOfImages + PREVIEW_SLICES - 1) / PREVIEW_SLICES) : 1 ;
 		int ns = Math.max(1, (numberOfImages + step - 1) / step) ;
-		int[] sliceIdx = new int[ns] ;
-		for(int m = 0 ; m < ns ; m++) sliceIdx[m] = Math.min(m * step, numberOfImages - 1) ;
-		sliceIdx[ns - 1] = numberOfImages - 1 ;   // always include the last slice
+		int[] sliceIdx = new int[ns] ;       // original index of each sampled slice
+		double[] slicePos = new double[ns] ; // its through-plane position, in px
+		for(int m = 0 ; m < ns ; m++){
+			int k = Math.min(m * step, numberOfImages - 1) ;
+			if(m == ns - 1) k = numberOfImages - 1 ;   // always include the last slice
+			sliceIdx[m] = (geo != null) ? geo.order[k] : k ;
+			slicePos[m] = (geo != null) ? geo.pos[k] : k ;
+		}
 
 		double dx = Math.cos(cutPhi), dy = Math.sin(cutPhi) ;
 		final double EPS = 1e-6 ;
@@ -238,17 +228,19 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 		zw = owidth ;
 
 		// Cap the output height : a reconstruction taller than the screen is
-		// pointless and just costs memory / time. The slice axis is resampled into
-		// outH rows (each maps to a fractional position among the sampled slices).
-		int fullH = thickness * numberOfImages ;
+		// pointless and just costs memory / time. The slice axis is resampled
+		// into outH rows, each mapped to a PHYSICAL position in the stack.
+		int fullH = (geo != null) ? (int)Math.round(geo.spanPx() * zoomZ) + 1
+		                          : thickness * numberOfImages ;
 		int outH = Math.max(1, Math.min(fullH, maxDisplayHeight())) ;
 		int[] zpixels = new int[outH * owidth] ;
+		int[] k0 = new int[outH] ;
+		float[] frac = new float[outH] ;
+		SliceGeometry.resampleMap(slicePos, ns, outH, k0, frac) ;
 		for(int r = 0 ; r < outH ; r++){
-			double p = (outH == 1) ? 0 : (double)r * (ns - 1) / (outH - 1) ;
-			int m0 = (int)p ;
+			int m0 = k0[r] ;
 			int m1 = Math.min(m0 + 1, ns - 1) ;
-			float ratio = (float)(p - m0) ;
-			interpolateRow(rows[m0], rows[m1], ratio, zpixels, r * owidth, owidth) ;
+			interpolateRow(rows[m0], rows[m1], frac[r], zpixels, r * owidth, owidth) ;
 		}
 		return createImage(new MemoryImageSource(owidth, outH, zpixels, 0, owidth)) ;
 	}
@@ -424,8 +416,15 @@ protected Image getImageNumber(int num){
 
 }
 public void setThickness(int mm){
-		this.thickness = mm * 3 ;
-		zh = thickness * numberOfImages ;
+		SliceGeometry geo = parent.getSliceGeometry() ;
+		if(geo != null){
+			// With real positions the menu is a vertical zoom : render as if the
+			// mean inter-slice spacing were mm millimeters.
+			zoomZ = mm / geo.meanSpacingMm ;
+		} else {
+			this.thickness = mm * 3 ;
+			zh = thickness * numberOfImages ;
+		}
 		zImg = zconstruc();
 		if(resultViewer != null) resultViewer.setImage(zImg) ;
 		repaint() ;

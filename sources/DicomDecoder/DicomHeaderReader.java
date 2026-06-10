@@ -520,7 +520,9 @@ public  class DicomHeaderReader{
 		public String  getPixelSpacing(){ 	return pixelSpacing; 			}
 		public double getSliceThicknessValue(){ return parseDecimal(sliceThickness, 0); }
 		public double getSpacingBetweenSlicesValue(){ return parseDecimal(spacingBetweenSlices, 0); }
-		public double getSliceLocationValue(){ return parseDecimal(sliceLocation, 0); }
+		// NaN when absent : slice locations are routinely NEGATIVE on CT, so the
+		// usual -1 sentinel is indistinguishable from a real position.
+		public double getSliceLocationValue(){ return parseDecimal(sliceLocation, 0, Double.NaN); }
 		public double getPixelSpacingRowValue(){ return parseDecimal(pixelSpacing, 0); }
 		public double getPixelSpacingColumnValue(){ return parseDecimal(pixelSpacing, 1); }
 
@@ -562,9 +564,13 @@ public  class DicomHeaderReader{
 	}
 
 		private double parseDecimal(String value, int fieldIndex){
-			if(value == null) return -1 ;
+			return parseDecimal(value, fieldIndex, -1) ;
+		}
+
+		private double parseDecimal(String value, int fieldIndex, double missing){
+			if(value == null) return missing ;
 			value = value.trim();
-			if(value.length() == 0 || value.equals("Unknown")) return -1 ;
+			if(value.length() == 0 || value.equals("Unknown")) return missing ;
 			StringTokenizer tokenizer = new StringTokenizer(value, "\\");
 			for(int i = 0; tokenizer.hasMoreTokens(); i++){
 				String token = tokenizer.nextToken().trim();
@@ -572,11 +578,11 @@ public  class DicomHeaderReader{
 					try{
 						return Double.valueOf(token).doubleValue();
 					}catch(NumberFormatException nfe){
-						return -1 ;
+						return missing ;
 					}
 				}
 			}
-			return -1 ;
+			return missing ;
 		}
 
 /**	Length declared by the pixel-data element (-1 if undefined/compressed). */

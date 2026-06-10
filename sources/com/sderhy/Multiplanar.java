@@ -50,16 +50,49 @@ public class Multiplanar   {
 
 			Vector getVector(){ return vimages; }
 
+			private SliceGeometry geometry ;
+			private boolean geometryBuilt = false ;
+
+			/** Per-slice through-plane geometry (sorted physical positions), or
+			*	null when the stack carries no usable SliceLocation : the
+			*	reconstructions then fall back to uniform spacing. */
+			SliceGeometry getSliceGeometry(){
+				if(!geometryBuilt){
+					geometry = SliceGeometry.build(vimages) ;
+					geometryBuilt = true ;
+				}
+				return geometry ;
+			}
+
+			/** Median |Δ SliceLocation| between consecutive loaded slices, in mm ;
+			*	-1 when fewer than one usable pair. */
+			private double medianLocationStep(){
+				int n = vimages.size() ;
+				double[] steps = new double[Math.max(0, n - 1)] ;
+				int count = 0 ;
+				for(int i = 1 ; i < n ; i++){
+					double a = ((PixObject)vimages.elementAt(i - 1)).sliceLocation ;
+					double b = ((PixObject)vimages.elementAt(i)).sliceLocation ;
+					if(Double.isNaN(a) || Double.isNaN(b)) continue ;
+					steps[count++] = Math.abs(b - a) ;
+				}
+				if(count == 0) return -1 ;
+				java.util.Arrays.sort(steps, 0, count) ;
+				return steps[count / 2] ;
+			}
+
 			int getSliceSpacingInPixels(int fallback){
 				if(vimages == null || vimages.isEmpty()) return fallback ;
 				PixObject po = (PixObject)vimages.firstElement();
 				double sliceSpacing = po.spacingBetweenSlices;
+				// Center-to-center distance BEFORE SliceThickness (0018,0050 is the
+				// slab thickness : on overlapping acquisitions it over-talls the
+				// stack ; with gaps it under-talls it). Use the MEDIAN of the
+				// consecutive |Δlocation| over the whole stack : the first pair may
+				// straddle a series boundary (mixed-series folders) and its jump
+				// would wildly over-stretch everything.
+				if(sliceSpacing <= 0) sliceSpacing = medianLocationStep();
 				if(sliceSpacing <= 0) sliceSpacing = po.sliceThickness;
-				if(sliceSpacing <= 0 && vimages.size() > 1){
-					PixObject next = (PixObject)vimages.elementAt(1);
-					if(po.sliceLocation > -1 && next.sliceLocation > -1)
-						sliceSpacing = Math.abs(next.sliceLocation - po.sliceLocation);
-				}
 				double pixelSpacing = po.pixelSpacingRow;
 				if(pixelSpacing <= 0) pixelSpacing = po.pixelSpacingColumn;
 				if(sliceSpacing <= 0 || pixelSpacing <= 0) return fallback ;

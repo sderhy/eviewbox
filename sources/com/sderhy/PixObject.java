@@ -24,7 +24,7 @@ java.lang.Cloneable/* Transferable , ClipboardOwner */ {
 		public boolean isShowing = false ;
 		public double sliceThickness = -1 ;
 		public double spacingBetweenSlices = -1 ;
-		public double sliceLocation = -1 ;
+		public double sliceLocation = Double.NaN ;   // NaN = absent (locations may be negative)
 		public double pixelSpacingRow = -1 ;
 		public double pixelSpacingColumn = -1 ;
 		// Hounsfield-Unit window/level support. When hasHU is true, `hu` holds the
