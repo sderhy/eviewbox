@@ -17,12 +17,12 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 int numberOfImages ;
 	 int  currentImage ;
 	 int  thickness  =  14 ; // in pixels ( 28 pixels /cm at  72 dpi )
-	 // Vertical zoom on top of the PHYSICAL through-plane scale (used when the
-	 // stack has per-slice positions ; 1.0 = geometrically correct).
-	 double zoomZ = 1.0 ;
+	 // Output height forced by the user (height slider on the result window) ;
+	 // -1 = automatic (physical when the stack has positions, thickness*n else).
+	 int manualHeight = -1 ;
+	 Scrollbar heightSlider ;
 	 int  w, h ;
 	 int zw ;
-	 int zh ;
 	 int mode = Multiplanar.FRONTAL ;
 	 DrawableCanvas dc ;
 	 private int[][] cachedPixels ;   // full pixels of each slice, grabbed once
@@ -35,10 +35,6 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	 private boolean previewMode = false ;   // low-res live preview while dragging
 	 private static final int PREVIEW_SLICES = 200 ;  // slices sampled in preview mode
 	Panel supP,infP,leftP,rightP ;
-
-	public MenuBar mb ;
-	public String[] menuFile  = new String[] {"Close" ,"close", "Print...", "print" , "Save...","save" };
-	public String[] menuThick = new String[] { "1 mm","1","2 mm","2","5mm","5","10 mm","10"};
 
   public DrawableFrame( Multiplanar orig ) {
     this(orig, Multiplanar.FRONTAL);
@@ -63,7 +59,6 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
     // plane axis, so long stacks were shrunk to fit the screen and the
     // reconstruction came out as a thin, wrongly-narrow band.
     thickness = parent.getSliceSpacingInPixels(1);
-    zh = thickness * numberOfImages ;
 
 	 dc = new DrawableCanvas(this) ;
     // dc.setSize(w, h) ;
@@ -76,7 +71,7 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	zImg = zconstruc();
 	resultViewer = new ImageViewer(zImg) ;
 	resultViewer.setTitle(mode == Multiplanar.SAGITTAL ? "Sagittal reconstruction" : "Frontal reconstruction") ;
-	installThicknessMenu() ;
+	installHeightSlider() ;
 	// Closing the result window tears down the whole reconstruction.
 	resultViewer.addWindowListener(new WindowAdapter(){
 		public void windowClosing(WindowEvent e){ DrawableFrame.this.dispose() ; }
@@ -93,41 +88,9 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	resultViewer.setLocation( 10 , 10 ) ;
 	resultViewer.show() ;
 
-	arrange() ;
-  //	addActionListener(this);
-
 	this.setLocation( 100  , /*f.getSize().height/2 */+ 30 ) ;
 	resultViewer.toFront();
    }
-
-	protected void arrange(){
-		MenuItem m = null;
-		int index = 0;
-		mb = new MenuBar() ;
-		this.setMenuBar(mb);
-		Menu file = new Menu( "File" );
-			file.add(m = new MenuItem(menuFile[index], new MenuShortcut(KeyEvent.VK_W)));//Close
-				m.addActionListener(this);m.setActionCommand(menuFile[++index]) ;
-			file.add(m = new MenuItem(menuFile[++index], new MenuShortcut(KeyEvent.VK_P)));//Print
-				m.addActionListener(this);m.setActionCommand(menuFile[++index]) ;
-			file.add(m = new MenuItem(menuFile[++index], new MenuShortcut(KeyEvent.VK_S)));//Save
-				m.addActionListener(this);m.setActionCommand(menuFile[index]) ;
-		mb.add(file);
-		 Menu sT = new Menu("Thickness" ) ;
-			sT.add(m = new MenuItem(menuThick[index = 0]));//1mm
-				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
-
-			sT.add(m = new MenuItem(menuThick[++index]));//2mm
-				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
-
-			sT.add(m = new MenuItem(menuThick[++index]));//5mm
-				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
-
-			sT.add(m = new MenuItem(menuThick[++index]));//10mm
-				m.addActionListener(this);m.setActionCommand(menuThick[++index]) ;
-		mb.add(sT);
-
-	}
 
 
   public Image zconstruc() {
@@ -230,8 +193,9 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 		// Cap the output height : a reconstruction taller than the screen is
 		// pointless and just costs memory / time. The slice axis is resampled
 		// into outH rows, each mapped to a PHYSICAL position in the stack.
-		int fullH = (geo != null) ? (int)Math.round(geo.spanPx() * zoomZ) + 1
+		int fullH = (geo != null) ? (int)Math.round(geo.spanPx()) + 1
 		                          : thickness * numberOfImages ;
+		if(manualHeight > 0) fullH = manualHeight ;   // height slider override
 		int outH = Math.max(1, Math.min(fullH, maxDisplayHeight())) ;
 		int[] zpixels = new int[outH * owidth] ;
 		int[] k0 = new int[outH] ;
@@ -338,24 +302,55 @@ public class DrawableFrame extends Frame implements WindowListener, ActionListen
 	public int imageH(){ return h ; }
 	public void setOnDispose(Runnable r){ onDispose = r ; }
 
-	// Add a Thickness menu to the result window (the hidden engine's own menu
-	// bar is never shown when driven from the live viewer).
-	private void installThicknessMenu(){
-		MenuBar rb = resultViewer.getMenuBar() ;
-		if(rb == null) return ;
-		Menu sT = new Menu("Thickness") ;
-		addThick(sT, "1 mm", 1) ;
-		addThick(sT, "2 mm", 2) ;
-		addThick(sT, "5 mm", 5) ;
-		addThick(sT, "10 mm", 10) ;
-		rb.add(sT) ;
-	}
-	private void addThick(Menu menu, String label, final int mm){
-		MenuItem mi = new MenuItem(label) ;
-		mi.addActionListener(new ActionListener(){
-			public void actionPerformed(ActionEvent e){ setThickness(mm) ; }
+	// Height slider at the bottom of the result window : drives the output
+	// height directly (replaces the old Thickness menu). The result window is
+	// the only window the user always sees (the engine frame is hidden when
+	// driven from the live viewer), so the control lives there.
+	private void installHeightSlider(){
+		heightSlider = new Scrollbar(Scrollbar.HORIZONTAL) ;
+		int maxH = maxDisplayHeight() ;
+		heightSlider.setValues(autoFullH(), 10, 16, maxH + 10) ;
+		heightSlider.addAdjustmentListener(new AdjustmentListener(){
+			public void adjustmentValueChanged(AdjustmentEvent e){
+				manualHeight = heightSlider.getValue() ;
+				// Low-res preview while the knob is dragged, full quality on release.
+				previewMode = e.getValueIsAdjusting() ;
+				zUpdate() ;
+				applyManualHeight() ;
+			}
 		}) ;
-		menu.add(mi) ;
+		Panel south = new Panel(new BorderLayout(6, 0)) ;
+		south.add("West", new Label("Height")) ;
+		south.add("Center", heightSlider) ;
+		resultViewer.add("South", south) ;
+		// Make room for the slider strip under the image.
+		Dimension d = resultViewer.getSize() ;
+		resultViewer.setSize(d.width, d.height + south.getPreferredSize().height + 8) ;
+		resultViewer.validate() ;
+	}
+
+	/** Automatic output height : physical span when the stack has per-slice
+	*	positions, thickness*n otherwise — capped to the screen. */
+	private int autoFullH(){
+		SliceGeometry geo = parent.getSliceGeometry() ;
+		int fullH = (geo != null) ? (int)Math.round(geo.spanPx()) + 1
+		                          : thickness * numberOfImages ;
+		return Math.max(16, Math.min(fullH, maxDisplayHeight())) ;
+	}
+
+	/** Follow the slider on screen : the result viewer keeps its display size
+	*	across setImage (wanted during crosshair drags), so a height change must
+	*	resize the displayed area and the window explicitly. */
+	private void applyManualHeight(){
+		if(resultViewer == null || manualHeight <= 0) return ;
+		int target = Math.min(manualHeight, maxDisplayHeight()) ;
+		int delta = target - resultViewer.desth ;
+		if(delta == 0) return ;
+		resultViewer.desth = target ;
+		Dimension s = resultViewer.getSize() ;
+		resultViewer.setSize(s.width, s.height + delta) ;
+		resultViewer.centerImage() ;
+		resultViewer.repaint() ;
 	}
 
 	public void dispose(){
@@ -415,37 +410,12 @@ protected Image getImageNumber(int num){
 	 return po.image ;
 
 }
-public void setThickness(int mm){
-		SliceGeometry geo = parent.getSliceGeometry() ;
-		if(geo != null){
-			// With real positions the menu is a vertical zoom : render as if the
-			// mean inter-slice spacing were mm millimeters.
-			zoomZ = mm / geo.meanSpacingMm ;
-		} else {
-			this.thickness = mm * 3 ;
-			zh = thickness * numberOfImages ;
-		}
-		zImg = zconstruc();
-		if(resultViewer != null) resultViewer.setImage(zImg) ;
-		repaint() ;
-}
-
 public boolean isDental(){ return parent.dental ;}
 public boolean isSagittal(){ return mode == Multiplanar.SAGITTAL ;}
 private int getReconstructionWidth(){ return isSagittal() ? h : w ;}
 
-//ActionListener :
-public void actionPerformed(ActionEvent e){
-		String s = e.getActionCommand() ;
-		if (s.equals("close"))  this.dispose() ;
-		else if(s.equals("print")) tools.Tools.debug(this, " Print command not  implemented yet") ;
-		else if(s.equals("save")) tools.Tools.debug(this, " Save command not  implemented yet") ;
-		else if(s.equals("1")) setThickness(1) ;
-		else if(s.equals("2")) setThickness(2) ;
-		else if(s.equals("5")) setThickness(5) ;
-		else if(s.equals("10")) setThickness(10) ;
-
-}
+//ActionListener : nothing registers on this frame anymore (menus removed).
+public void actionPerformed(ActionEvent e){ }
 
 //windowListener;
   public void windowClosing(WindowEvent e) { this.dispose(); }

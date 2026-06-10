@@ -20,6 +20,7 @@ public  class DrawJaws extends Mpr implements KeyListener {
 	private float[] cachedCx, cachedCy ;    // the curve sampledRows were built for
 	private Image prevResult ;              // last result image, flushed on the next build
 	private ImageViewer resultViewer ;      // persistent result window (reused on recompute)
+	private Scrollbar heightSlider ;        // output-height control (replaces the Thickness menu)
 	public DrawJaws( Multiplanar orig ) {
 
 		super(orig);
@@ -46,6 +47,26 @@ public  class DrawJaws extends Mpr implements KeyListener {
 
 		dCanvas = new DCanvas(this) ;
 		add("Center", dCanvas) ;
+
+		// Height slider : drives the reconstruction's output height directly
+		// (replaces the old File/Thickness menus). Starts at the automatic
+		// height ; rebuilds live while dragging (the curve sampling is cached).
+		heightSlider = new Scrollbar(Scrollbar.HORIZONTAL) ;
+		int maxH = maxDisplayHeight() ;
+		heightSlider.setValues(Math.min(autoHeight(), maxH), 10, 16, maxH + 10) ;
+		heightSlider.addAdjustmentListener(new AdjustmentListener(){
+			public void adjustmentValueChanged(AdjustmentEvent e){
+				manualHeight = heightSlider.getValue() ;
+				if(dCanvas.sampleCount() > 0){
+					zconstruc() ;
+					applyManualHeight() ;
+				}
+			}
+		}) ;
+		Panel south = new Panel(new BorderLayout(6, 0)) ;
+		south.add("West", new Label("Height")) ;
+		south.add("Center", heightSlider) ;
+		this.add("South", south) ;
 
 		// Left / right arrows navigate slices ; wire the listener to every place
 		// keyboard focus may land so the arrows work right after any click.
@@ -88,13 +109,14 @@ public  class DrawJaws extends Mpr implements KeyListener {
 		if(geo != null){
 			order = geo.order ;
 			pos = geo.pos ;
-			fullH = (int)Math.round(geo.spanPx() * zoomZ) + 1 ;
+			fullH = (int)Math.round(geo.spanPx()) + 1 ;
 		} else {
 			order = new int[n] ;
 			pos = new double[n] ;
 			for(int i = 0 ; i < n ; i++){ order[i] = i ; pos[i] = i ; }
 			fullH = thickness * n ;
 		}
+		if(manualHeight > 0) fullH = manualHeight ;   // height slider override
 		int outH = Math.max(1, Math.min(fullH, maxDisplayHeight())) ;
 		int[] k0 = new int[outH] ;
 		float[] frac = new float[outH] ;
@@ -223,14 +245,30 @@ public  class DrawJaws extends Mpr implements KeyListener {
 		if( e.getSource() == clear) dCanvas.clear();
 		if( e.getSource() == done ) zconstruc();
 		if(e.getActionCommand() == "undo") dCanvas.undo() ;
+	}
 
-		super.actionPerformed(e);     // Thickness menu updates thickness / zh here
+	/** Automatic output height : physical span when the stack has per-slice
+	*	positions, thickness*n otherwise — capped to the screen. */
+	private int autoHeight(){
+		SliceGeometry geo = parent.getSliceGeometry() ;
+		int fullH = (geo != null) ? (int)Math.round(geo.spanPx()) + 1
+		                          : thickness * vimages.size() ;
+		return Math.max(16, Math.min(fullH, maxDisplayHeight())) ;
+	}
 
-		// A thickness change re-stretches the through-plane axis : rebuild live.
-		String s = e.getActionCommand() ;
-		if((s.equals("1") || s.equals("2") || s.equals("5") || s.equals("10"))
-				&& dCanvas.sampleCount() > 0)
-			zconstruc() ;
+	/** Follow the slider on screen : the result viewer keeps its display size
+	*	across setImage, so a height change must resize the displayed area and
+	*	the window explicitly. */
+	private void applyManualHeight(){
+		if(resultViewer == null || manualHeight <= 0) return ;
+		int target = Math.min(manualHeight, maxDisplayHeight()) ;
+		int delta = target - resultViewer.desth ;
+		if(delta == 0) return ;
+		resultViewer.desth = target ;
+		Dimension s = resultViewer.getSize() ;
+		resultViewer.setSize(s.width, s.height + delta) ;
+		resultViewer.centerImage() ;
+		resultViewer.repaint() ;
 	}
 
 	// Reuse one result window across recomputes instead of opening a new one.
