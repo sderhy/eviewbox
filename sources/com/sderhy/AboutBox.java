@@ -20,7 +20,15 @@ public class AboutBox extends Dialog {
 			+ "Open source DICOM viewer",
 			20, 12, MultiLineLabel.CENTER) ;
 		text.setFont(new Font("TimesRoman", Font.BOLD, 14)) ;
-		add("Center", text) ;
+		add("North", text) ;
+
+		MultiLineLabel disclaimer = new MultiLineLabel(
+			"Not a medical device — educational and research use only.\n"
+			+ "Not intended for medical diagnosis.",
+			20, 4, MultiLineLabel.CENTER) ;
+		disclaimer.setFont(new Font("TimesRoman", Font.PLAIN, 11)) ;
+		disclaimer.setForeground(Color.darkGray) ;
+		add("Center", disclaimer) ;
 
 		Panel buttons = new Panel() ;
 		Button site = new Button("Open GitHub Page") ;

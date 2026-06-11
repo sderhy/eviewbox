@@ -4,6 +4,16 @@ Visualiseur d'images médicales et bitmap écrit en Java AWT. Léger, rapide, sa
 
 Pensé pour qui veut ouvrir et manipuler une image sans lancer une suite lourde — utile au quotidien, notamment en imagerie médicale.
 
+## Avertissement / Disclaimer
+
+**EViewBox n'est pas un dispositif médical.** Ce logiciel est fourni à des fins éducatives, de recherche et de démonstration uniquement ; il ne doit pas être utilisé pour le diagnostic médical ni pour des décisions de traitement. Le logiciel est fourni « tel quel », sans aucune garantie ; l'auteur décline toute responsabilité quant à son utilisation (voir les sections 7 et 8 de la [licence Apache 2.0](LICENSE)).
+
+**EViewBox is not a medical device.** This software is provided for educational, research and demonstration purposes only; it must not be used for medical diagnosis or treatment decisions. The software is provided "as is", without warranty of any kind; the author accepts no liability for its use (see sections 7 and 8 of the [Apache 2.0 license](LICENSE)).
+
+## Télécharger
+
+Des installeurs autonomes (Java inclus) sont publiés sur la [page Releases](https://github.com/sderhy/eviewbox/releases) : `.dmg` macOS (signé et notarisé), `.msi` Windows et `.deb` Linux.
+
 ## Fonctionnalités
 
 - Lecture DICOM avec décodeur intégré
