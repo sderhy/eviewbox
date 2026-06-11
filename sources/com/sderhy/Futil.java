@@ -22,6 +22,30 @@ public class Futil {
 		return new File(System.getProperty("user.dir"));
 	}
 
+	/** Native folder picker. On macOS the AWT FileDialog can select folders
+	*	(apple.awt.fileDialogForDirectories) ; elsewhere FileDialog only picks
+	*	files , so the user picks any file inside the wanted folder and its
+	*	parent is returned. Returns null when cancelled. */
+	public static File chooseDirectory(Frame parent, String title){
+		boolean mac = System.getProperty("os.name", "").toLowerCase().indexOf("mac") >= 0 ;
+		if(mac) System.setProperty("apple.awt.fileDialogForDirectories", "true") ;
+		try{
+			FileDialog fd = new FileDialog(parent,
+					mac ? title : title + " (pick any file inside it)", FileDialog.LOAD) ;
+			fd.setDirectory(getLastDirectory().getAbsolutePath()) ;
+			fd.show() ;// blocks until the user chooses
+			if(fd.getFile() == null){ fd.dispose() ; return null ; }
+			File chosen = new File(fd.getDirectory(), fd.getFile()) ;
+			fd.dispose() ;
+			File dir = chosen.isDirectory() ? chosen : chosen.getParentFile() ;
+			setLastDirectory(dir) ;
+			return dir ;
+		}
+		finally{
+			if(mac) System.setProperty("apple.awt.fileDialogForDirectories", "false") ;
+		}
+	}
+
 	public static String openDialog(java.awt.Frame f) {
 			String fileString  = "";
 			FileDialog fd = new FileDialog(f,"Open file",FileDialog.LOAD) ;

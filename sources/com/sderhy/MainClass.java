@@ -10,8 +10,6 @@ import java.awt.*;
 import java.io.* ;
 import java.util.Arrays;
 import java.util.Vector;
-import javax.swing.JButton;
-import javax.swing.JFileChooser;
 import tools.Chrono ;
 import tools.Tools ;
 import java.awt.event.* ;
@@ -21,7 +19,6 @@ public class MainClass extends Frame  implements WindowListener{
 	public TextField TF;
 	public PixCanvas canvas;
 	public Vector vimages ;
-	private File lastOpenDirectory ;
 	private ExaminationPanel examPanel ;   // embedded DICOMDIR / examination tree (left side)
 	private PrefsDialog prefsDialog ;
 	public MainClass( String title){
@@ -29,7 +26,6 @@ public class MainClass extends Frame  implements WindowListener{
 		TF = new TextField(80) ;
 		//TA = new TextArea();
 		vimages = new Vector(32,32);
-		lastOpenDirectory = Futil.getLastDirectory();
 
 		int screenH = Toolkit.getDefaultToolkit().getScreenSize().height;
 	 	int screenW = Toolkit.getDefaultToolkit().getScreenSize().width;
@@ -150,30 +146,9 @@ public class MainClass extends Frame  implements WindowListener{
 
  public void OpenFolder(){
  	Tools.debug(this, "OpenFolder") ;
-	JFileChooser chooser = new JFileChooser(lastOpenDirectory);
-	chooser.setDialogTitle("Open Images Folder");
-	chooser.setApproveButtonText("Open");
-	chooser.setApproveButtonToolTipText("Open images from the selected folder");
-	chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-	chooser.setAcceptAllFileFilterUsed(false);
-
-	JButton openCurrentFolder = new JButton("Open Current Folder");
-	openCurrentFolder.addActionListener(new ActionListener(){
-		public void actionPerformed(ActionEvent e){
-			chooser.setSelectedFile(chooser.getCurrentDirectory());
-			chooser.approveSelection();
-		}
-	});
-	chooser.setAccessory(openCurrentFolder);
-
-	if(chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return ;
-
-	File dir = chooser.getSelectedFile();
-	if(dir == null) dir = chooser.getCurrentDirectory();
+	File dir = Futil.chooseDirectory(this, "Open Images Folder");
 	Tools.debug("chosen dir = "+ dir);
 	if(dir == null || !dir.isDirectory()) return ;
-	lastOpenDirectory = dir;
-	Futil.setLastDirectory(dir);
 
 	File[] files = dir.listFiles();
 	if(files == null) return ;

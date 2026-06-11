@@ -9,9 +9,7 @@
 *	@author Serge Derhy
 */
 package com.sderhy ;
-import java.awt.event.* ;
 import java.io.* ;
-import javax.swing.* ;
 import tools.Tools ;
 
 public class OpenExamination {
@@ -19,41 +17,12 @@ public class OpenExamination {
 	private static final int MAX_DEPTH = 8 ;
 
 	public static void run(final MainClass mc){
-		// FILES_AND_DIRECTORIES so the user can pick a DICOMDIR file directly OR a
-		// folder (current / parent / child). An accessory button selects the folder
-		// currently shown without having to step into it.
-		final JFileChooser chooser = new JFileChooser(Futil.getLastDirectory()) ;
-		chooser.setDialogTitle("Open Examination — pick a DICOMDIR file or a folder") ;
-		chooser.setApproveButtonText("Open") ;
-		chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES) ;
-		chooser.setAcceptAllFileFilterUsed(true) ;
+		// Native folder picker : the DICOMDIR (if any) is searched recursively
+		// inside the chosen folder, so picking the examination folder is enough.
+		File dir = Futil.chooseDirectory(mc, "Open Examination — choose the examination folder") ;
+		if(dir == null) return ;
 
-		JButton useCurrent = new JButton("Use Current Folder") ;
-		useCurrent.addActionListener(new ActionListener(){
-			public void actionPerformed(ActionEvent e){
-				chooser.setSelectedFile(chooser.getCurrentDirectory()) ;
-				chooser.approveSelection() ;
-			}
-		}) ;
-		chooser.setAccessory(useCurrent) ;
-
-		if(chooser.showOpenDialog(mc) != JFileChooser.APPROVE_OPTION) return ;
-
-		File chosen = chooser.getSelectedFile() ;
-		if(chosen == null) chosen = chooser.getCurrentDirectory() ;
-		if(chosen == null) return ;
-
-		// Work out the DICOMDIR (if any) and the folder to fall back on.
-		File dicomdir = null ;
-		File dir ;
-		if(chosen.isFile()){
-			if(chosen.getName().equalsIgnoreCase("DICOMDIR")) dicomdir = chosen ;
-			dir = chosen.getParentFile() ;          // a file was picked : use its folder
-		} else {
-			dir = chosen ;
-		}
-		if(dir != null) Futil.setLastDirectory(dir) ;
-		if(dicomdir == null && dir != null) dicomdir = findDicomdir(dir, 0) ;
+		File dicomdir = findDicomdir(dir, 0) ;
 
 		Examination exam ;
 		try {
